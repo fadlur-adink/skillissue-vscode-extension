@@ -4,7 +4,8 @@
 
 SkillIssue is a VS Code extension that playfully reacts when a development
 workflow fails. Run a test suite, a TypeScript build, a linter or a production
-build — if it fails, a laughing cat appears with the appropriate sound. If it
+build — as a VS Code **task** or typed straight into the **integrated terminal** —
+and if it fails, a laughing cat appears with the appropriate sound. If it
 succeeds, SkillIssue stays completely out of your way.
 
 SkillIssue is strictly **observational**. It never changes exit codes, output or
@@ -32,6 +33,7 @@ This project is being built phase by phase from the plan in
 | 9 | Testing & reliability | ✅ Complete |
 | 10 | Production readiness & packaging | ✅ Complete |
 | 11 | Final product review | ✅ Complete |
+| Post-review | Integrated-terminal detection & one-click sound | ✅ Complete |
 
 See `docs/ARCHITECTURE.md` for the architectural
 decisions that guide the implementation.
@@ -90,6 +92,7 @@ Every setting lives under the `skillissue` namespace (open Settings and search
 | `skillissue.workflows.exclude` | `[]` | Never react when the name contains one of these substrings (wins over `include`). |
 | `skillissue.workflows.treatCancellationAsFailure` | `false` | React when a monitored workflow is cancelled. |
 | `skillissue.workflows.treatUnknownAsFailure` | `false` | React when a workflow ends with an unknown result. |
+| `skillissue.workflows.detectTerminalCommands` | `true` | Also react to build/test/lint commands typed in the integrated terminal (needs shell integration); ordinary commands like `git`/`ls` are ignored. |
 | `skillissue.repeatedFailures` | `always` | `always` reacts to every failure; `first-only` reacts once per streak. |
 
 ---
@@ -124,8 +127,8 @@ VS Code with `code --install-extension skillissue-<version>.vsix`; publish with
 ## Testing
 
 SkillIssue is tested at two levels so that most behaviour can be verified
-without driving a real developer workflow. Both suites are green: **143 unit +
-15 integration** tests.
+without driving a real developer workflow. Both suites are green: **167 unit +
+21 integration** tests.
 
 * **Unit tests** (`src/test/unit/**`) — pure logic with **no `vscode` import**.
   They run with plain Mocha on the compiled JavaScript and are fast and offline.
@@ -133,9 +136,9 @@ without driving a real developer workflow. Both suites are green: **143 unit +
   instance** via
   [`@vscode/test-cli`](https://www.npmjs.com/package/@vscode/test-cli) (+
   `@vscode/test-electron`). They verify activation and contributed commands, the
-  WebView panel lifecycle, detector disposal and live settings reload against the
-  actual API — and, in `endToEnd.test.ts`, drive a real failing task through the
-  entire detection → policy → reaction loop.
+  WebView panel lifecycle, detector disposal (task **and** terminal) and live
+  settings reload against the actual API — and, in `endToEnd.test.ts`, drive a
+  real failing task through the entire detection → policy → reaction loop.
 
 Integration tests download a VS Code build on first run and require a desktop
 environment (a display); on headless CI use a virtual framebuffer, e.g.
@@ -156,7 +159,7 @@ user-data directory `@vscode/test-cli` provisions, never your real settings.
 │   ├── constants.ts         # Command IDs / channel names shared with the manifest
 │   ├── logging/             # Logger contract (pure) + OutputChannel implementation
 │   ├── core/                # Domain model: operations, outcomes, events, tracker (pure)
-│   ├── detection/           # VS Code Tasks API → domain events (pure mapping + adapter)
+│   ├── detection/           # VS Code Tasks API + Terminal Shell Execution API → domain events (pure mapping + adapters)
 │   ├── policy/              # Reaction policy: does an outcome deserve a cat? (pure)
 │   ├── reaction/            # Cat meme WebView (pure markup + VS Code panel controller)
 │   ├── orchestration/       # The loop: detection → policy → reaction (pure)

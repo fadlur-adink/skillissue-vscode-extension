@@ -25,6 +25,7 @@ export interface RawSkillIssueSettings {
   readonly repeatedFailures?: unknown;
   readonly treatCancellationAsFailure?: unknown;
   readonly treatUnknownAsFailure?: unknown;
+  readonly detectTerminalCommands?: unknown;
 }
 
 /** The strongly-typed settings the rest of SkillIssue consumes. */
@@ -39,6 +40,8 @@ export interface SkillIssueSettings {
   readonly durationMs: number;
   /** Minimum spacing between reactions (ms); `0` disables the cooldown. */
   readonly cooldownMs: number;
+  /** Whether to also detect build/test/lint commands typed in the integrated terminal. */
+  readonly detectTerminalCommands: boolean;
 }
 
 /** Out-of-the-box defaults, expressed as the mapped result of empty raw input. */
@@ -71,6 +74,7 @@ export function toSkillIssueSettings(raw: RawSkillIssueSettings): SkillIssueSett
     volume,
     durationMs: Math.round(durationSeconds * 1000),
     cooldownMs: Math.round(cooldownSeconds * 1000),
+    detectTerminalCommands: toBoolean(raw.detectTerminalCommands, true),
   };
 }
 

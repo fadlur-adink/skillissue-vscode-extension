@@ -142,11 +142,12 @@ Known limitations (deliberately surfaced, not hidden):
 * **Cancellation is not distinguishable from other code-less endings.** When a
   task ends without an exit code the Tasks API gives no reliable "user
   cancelled" flag, so it maps to `unknown`, not `cancelled`.
-* **Ad-hoc integrated-terminal commands are not detected yet.** Commands typed
-  directly into a terminal are not VS Code *tasks* and never flow through the
-  Tasks API. Detecting them reliably needs terminal shell-integration exit codes
-  (a newer API than the 1.90 baseline) and remains out of scope after Phase 7 (see
-  §9 and the Phase 7 subsection).
+* **Ad-hoc integrated-terminal commands were originally out of scope.** Commands
+  typed directly into a terminal are not VS Code *tasks*, so they never flow
+  through the Tasks API. This gap was **closed after Phase 11** by a second
+  detector built on the Terminal Shell Execution API (a newer API than the 1.90
+  baseline, reached defensively) — see the "Integrated-terminal detection"
+  subsection below and §9.
 * **End-to-end task detection is validated manually in Phase 2** (run a task in
   the Extension Development Host and watch the `SkillIssue` Output channel);
   automated end-to-end coverage of the whole loop now lives in the integration
@@ -379,7 +380,7 @@ VS Code cannot support more):
 | Task reruns | A rerun is a fresh process with its own exit code; `operationKey` excludes the per-run id, so the tracker treats it as the same logical operation (repeat rules apply). |
 | Shell differences (sh/bash/pwsh/zsh) | Only the exit code is consumed, never shell-specific output, so behaviour does not depend on the shell. |
 | Windows / macOS / Linux | No platform-specific parsing; the token heuristic strips path separators (`/` and `\`) and executable extensions (`.cmd`, `.bat`, `.exe`). |
-| Ad-hoc terminal commands (not tasks) | Still **not** detected — they never flow through the Tasks API, and shell-integration exit codes need an API newer than the 1.90 baseline. Documented limitation, not papered over. |
+| Ad-hoc terminal commands (not tasks) | Not detected *by this Tasks-API detector* — they never flow through the Tasks API. Closed after Phase 11 by a dedicated `TerminalExecutionDetector` on the shell-integration exit-code API (see the Integrated-terminal detection subsection). |
 
 ### Meme experience polish (Phase 8 — implemented)
 
@@ -503,6 +504,54 @@ WebView security (strict CSP, per-render nonce, HTML escaping and
 * **No scope creep.** The review corrected the stale promise and added the
   missing coverage; it introduced no new features.
 
+### Integrated-terminal detection (post-review enhancement — implemented)
+
+Real-world use after Phase 11 surfaced a gap the plan had explicitly deferred: a
+build typed straight into the integrated terminal (`yarn build`, `next build`) is
+**not** a VS Code task, so the Tasks-API detector never saw it and the cat never
+appeared. It was closed with a second, independent detector — the existing task
+path is unchanged.
+
+* **A second signal: the Terminal Shell Execution API.**
+  `window.onDidEndTerminalShellExecution` reports a finished terminal command and
+  its exit code, but **only when shell integration is active** for that terminal.
+  It is newer than the pinned `@types/vscode` (1.90), so `terminalDetector.ts`
+  reaches it through a small, local structural shim plus a runtime
+  `typeof === 'function'` guard. The engine stays `^1.90.0`: on an older VS Code
+  (or without shell integration) the detector reports `available === false`,
+  subscribes to nothing and silently no-ops — a pure progressive enhancement.
+* **Noise control is the whole design.** A terminal runs thousands of commands
+  whose non-zero exits are ordinary (`ls`, `grep`, `git status`, `cd`). So the
+  pure, exhaustively unit tested `commandMapping.ts` classifies only commands that
+  clearly look like a build / test / lint / compile — reusing the same script-name
+  heuristic as tasks (`yarn build` → Build, `npm test` → Test) plus a bounded set
+  of well-known tools and subcommand tools (`next build`, `cargo test`, `go vet`).
+  Dev servers (`next dev`, `vite`) and everything unrecognised resolve to
+  `Unknown`, and `terminalWorkflowEvent` returns `undefined` for those, so the
+  detector emits nothing. Ordinary shell noise can never trigger a meme.
+* **Same loop, new source.** Recognised commands become `Operation`s with
+  `source: 'terminal'` and flow through the *unchanged* policy → orchestrator →
+  reaction path, so every existing setting (monitored kinds, include/exclude,
+  cooldown, repeated failures) applies identically. `extension.ts` feeds both
+  detectors into one shared handler.
+* **Gated and honest.** A new setting
+  `skillissue.workflows.detectTerminalCommands` (default `true`) turns the whole
+  feature off; the gate is read live per event. The dependence on shell
+  integration is documented (§9), not hidden.
+* **Sound: one click is the platform floor.** A WebView cannot auto-play audio
+  without a user gesture (Chromium policy) and the panel keeps `preserveFocus`, so
+  it never receives one. Rather than steal focus (annoying), the whole reaction
+  card is now a single click target that plays the laugh, with a clearer hint
+  ("Click anywhere to play the laugh"); the explicit "Play sound" button remains
+  for keyboard users. Once a reused panel is unlocked, later reactions play
+  without another click.
+* **Coverage.** `commandMapping` is unit tested across package managers,
+  standalone and subcommand tools, wrappers/env prefixes, path/extension forms and
+  shell noise; `terminalDetection.test.ts` verifies inside a real host that the
+  runtime feature check agrees with the actual API and that the listener lifecycle
+  is safe. A real terminal command is deliberately **not** executed in tests — it
+  needs shell integration and would be flaky (mirroring `detection.test.ts`).
+
 ---
 
 ## 4. Extension lifecycle & composition
@@ -564,18 +613,21 @@ resolves the GIF, audio and poster through `asWebviewUri`.
 ## 7. Testing strategy
 
 Two tiers, chosen so most behaviour is verifiable **without** a real developer
-workflow. As of Phase 11 both run green: **143 unit + 15 integration** tests.
+workflow. Both run green: **167 unit + 21 integration** tests (the counts include
+the post-review integrated-terminal detection work).
 
 1. **Unit tests** (`src/test/unit/**`, Mocha, `.mocharc.json`) — pure logic,
    **no `vscode` import**. Fast, offline, deterministic. This is where `core/`,
    `policy/`, `config/` mapping, `reaction/` markup, `orchestration/` and the
-   `detection/taskMapping` extraction + classification are covered.
+   `detection/taskMapping` + `detection/commandMapping` extraction and
+   classification are covered.
 2. **Integration tests** (`src/test/integration/**`, `@vscode/test-cli` +
    `@vscode/test-electron`, `.vscode-test.mjs`) — run inside a real VS Code
    Extension Development Host; cover activation and contributed commands, the
-   WebView panel lifecycle, detector subscription/disposal, live settings reload
-   against the actual API, and — in `endToEnd.test.ts` — a real failing task
-   driven through the entire detection → policy → reaction loop.
+   WebView panel lifecycle, detector subscription/disposal (both the task and the
+   terminal detectors), live settings reload against the actual API, and — in
+   `endToEnd.test.ts` — a real failing task driven through the entire
+   detection → policy → reaction loop.
 
 Both tiers use Mocha's **BDD** interface (`describe`/`it`) and Node's built-in
 `node:assert/strict`, avoiding an extra assertion dependency. Note that
@@ -636,12 +688,13 @@ implementation (Phase 2 onward). Known-ahead-of-time items:
 
 * **Terminal text is not a reliable success signal.** Confirmed in Phase 2:
   SkillIssue uses the Tasks API's `exitCode` instead of parsing terminal output.
-* **Not every execution path exposes an exit code.** Ad-hoc integrated-terminal
-  commands are not tasks and are not detected; a code-less task ending maps to
-  `unknown` rather than a guessed result. Phase 7 confirmed task *classification*
-  is solvable from VS Code's structured metadata, but terminal-typed commands still
-  need shell-integration exit codes (an API newer than the 1.90 baseline), so they
-  remain a documented limitation rather than something papered over.
+* **Not every execution path exposes an exit code.** A code-less task ending maps
+  to `unknown` rather than a guessed result. Ad-hoc integrated-terminal commands
+  *are* now detected — but only through the Terminal Shell Execution API, which
+  fires **only when shell integration is active** for that terminal. Where shell
+  integration is off (or on a VS Code older than the API) terminal commands are
+  not observed; the detector reports `available === false` and no-ops rather than
+  guessing. This is a real, documented constraint, not something papered over.
 * **Background/watch tasks only report on process end.** A dev server that keeps
   running and prints errors without exiting produces no `onDidEndTaskProcess`, so
   in-watch failures are not observed. Confirmed in Phase 7 and documented rather
@@ -651,9 +704,13 @@ implementation (Phase 2 onward). Known-ahead-of-time items:
 * **No true overlay above the workbench.** Extensions cannot draw a z-layer over
   the VS Code UI, so the reaction is a `WebviewPanel` (a centered, themed,
   auto-dismissing card) rather than a floating overlay. Confirmed in Phase 4.
-* **WebView audio autoplay can be gesture-gated.** Chromium may reject a
-  programmatic `audio.play()` without user interaction; Phase 4 handles the
-  rejection by revealing an explicit "Play sound" control instead of failing.
+* **WebView audio autoplay is gesture-gated — one click is the floor.** Chromium
+  rejects a programmatic `audio.play()` without user interaction, and the reaction
+  panel keeps `preserveFocus` so it never receives a gesture. SkillIssue never
+  steals focus to force it; instead the whole card is a single click target that
+  plays the laugh (with a "Click anywhere to play the laugh" hint), alongside the
+  explicit "Play sound" button for keyboard users. A reused panel stays unlocked,
+  so later reactions in the same session play without another click.
 * **Integration tests need a real desktop session.** `@vscode/test-cli`
   downloads VS Code and launches Electron, which requires a display and a
   writable temp/user-data directory. They cannot run in a fully

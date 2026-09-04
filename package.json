@@ -108,6 +108,11 @@
           "default": false,
           "description": "React when a monitored workflow ends with an unknown result."
         },
+        "skillissue.workflows.detectTerminalCommands": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also react to build/test/lint commands typed in the integrated terminal, not just tasks. Requires terminal shell integration; ordinary commands (git, ls, grep, …) are ignored."
+        },
         "skillissue.repeatedFailures": {
           "type": "string",
           "default": "always",

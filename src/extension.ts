@@ -7,9 +7,10 @@ import {
   PREVIEW_REACTION_COMMAND_ID,
 } from './constants';
 import { describeOperationOutcome } from './core/describe';
-import { isCompletedEvent } from './core/events';
+import { isCompletedEvent, WorkflowEvent } from './core/events';
 import { isFailure } from './core/outcome';
 import { TaskDetector } from './detection/taskDetector';
+import { TerminalExecutionDetector } from './detection/terminalDetector';
 import { createOutputChannelLogger } from './logging/outputChannelLogger';
 import { SkillIssueOrchestrator } from './orchestration/skillIssueOrchestrator';
 import { CatReactionController } from './reaction/catReactionController';
@@ -80,25 +81,40 @@ export function activate(context: vscode.ExtensionContext): void {
     logger,
   });
 
-  // Phase 2 — observe developer workflows. The detector only reports what
-  // happened; the orchestrator decides whether it deserves a cat.
-  const detector = new TaskDetector(logger);
-  context.subscriptions.push(detector);
-  context.subscriptions.push(
-    detector.onWorkflowEvent((event) => {
-      // Observation log: record what happened (successes included).
-      if (isCompletedEvent(event)) {
-        const description = describeOperationOutcome(event.operation, event.outcome);
-        if (isFailure(event.outcome)) {
-          logger.warn(description);
-        } else {
-          logger.info(description);
-        }
+  // A single handler for every detection source: log what happened, then run the
+  // loop (policy → reaction). Shared so tasks and terminal commands behave
+  // identically. Contained — the orchestrator never throws.
+  const handleWorkflowEvent = (event: WorkflowEvent): void => {
+    // Observation log: record what happened (successes included).
+    if (isCompletedEvent(event)) {
+      const description = describeOperationOutcome(event.operation, event.outcome);
+      if (isFailure(event.outcome)) {
+        logger.warn(description);
+      } else {
+        logger.info(description);
       }
-      // The loop: judge (policy) and react (cat). Contained — never throws.
-      orchestrator.handleEvent(event);
-    }),
+    }
+    // The loop: judge (policy) and react (cat).
+    orchestrator.handleEvent(event);
+  };
+
+  // Phase 2 — observe developer workflows via the Tasks API. The detector only
+  // reports what happened; the orchestrator decides whether it deserves a cat.
+  const taskDetector = new TaskDetector(logger);
+  context.subscriptions.push(taskDetector);
+  context.subscriptions.push(taskDetector.onWorkflowEvent(handleWorkflowEvent));
+
+  // Integrated-terminal detection: a command typed in a terminal is not a task,
+  // so the Tasks API never sees it. This detector reaches the newer Terminal
+  // Shell Execution API defensively and self-disables where it is unavailable. It
+  // is gated live by `workflows.detectTerminalCommands` and only emits real
+  // build/test/lint/compile commands — never ordinary shell noise.
+  const terminalDetector = new TerminalExecutionDetector(
+    logger,
+    () => config.read().detectTerminalCommands,
   );
+  context.subscriptions.push(terminalDetector);
+  context.subscriptions.push(terminalDetector.onWorkflowEvent(handleWorkflowEvent));
 
   logger.info('SkillIssue activated.');
 }

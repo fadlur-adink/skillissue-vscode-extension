@@ -54,6 +54,7 @@ export class SkillIssueConfig implements vscode.Disposable {
       repeatedFailures: config.get('repeatedFailures'),
       treatCancellationAsFailure: config.get('workflows.treatCancellationAsFailure'),
       treatUnknownAsFailure: config.get('workflows.treatUnknownAsFailure'),
+      detectTerminalCommands: config.get('workflows.detectTerminalCommands'),
     };
     return toSkillIssueSettings(raw);
   }

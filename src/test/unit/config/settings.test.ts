@@ -23,6 +23,7 @@ describe('config/settings', () => {
       assert.equal(s.volume, 1);
       assert.equal(s.durationMs, DEFAULT_DURATION_SECONDS * 1000);
       assert.equal(s.cooldownMs, DEFAULT_COOLDOWN_SECONDS * 1000);
+      assert.equal(s.detectTerminalCommands, true);
     });
 
     it('createDefaultSkillIssueSettings equals mapping empty input', () => {
@@ -48,6 +49,26 @@ describe('config/settings', () => {
       const s = toSkillIssueSettings({ enabled: 'false', soundEnabled: 0 });
       assert.equal(s.policy.enabled, true, 'a string is not a boolean, so the default applies');
       assert.equal(s.soundEnabled, true);
+    });
+  });
+
+  describe('detectTerminalCommands', () => {
+    it('defaults to true', () => {
+      assert.equal(toSkillIssueSettings({}).detectTerminalCommands, true);
+    });
+
+    it('respects an explicit false', () => {
+      assert.equal(
+        toSkillIssueSettings({ detectTerminalCommands: false }).detectTerminalCommands,
+        false,
+      );
+    });
+
+    it('falls back to true for a non-boolean value', () => {
+      assert.equal(
+        toSkillIssueSettings({ detectTerminalCommands: 'no' }).detectTerminalCommands,
+        true,
+      );
     });
   });
 

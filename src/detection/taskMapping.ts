@@ -235,8 +235,12 @@ function kindFromSource(
  * Classifies from an npm/pnpm/yarn **script name** (e.g. `test`, `build:prod`,
  * `lint`, `typecheck`). Script names are semantic by convention, so prefix/keyword
  * matching here is reliable and stays far from a list of command lines.
+ *
+ * Exported for reuse by `commandMapping.ts`: a package-manager command typed in
+ * the integrated terminal (`yarn build`, `npm test`) runs the same scripts, so the
+ * exact same heuristic classifies it.
  */
-function kindFromScriptName(script: string | undefined): OperationKind | undefined {
+export function kindFromScriptName(script: string | undefined): OperationKind | undefined {
   const name = script?.trim().toLowerCase();
   if (!name) {
     return undefined;

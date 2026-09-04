@@ -89,6 +89,20 @@ describe('reaction/reactionView', () => {
     });
   });
 
+  describe('click-anywhere sound unlock', () => {
+    it('invites a single click with a clearer hint', () => {
+      const html = buildReactionHtml(model());
+      assert.match(html, /Click anywhere to play the laugh/);
+    });
+
+    it('makes the whole card a one-click target for the laugh when sound is on', () => {
+      const html = buildReactionHtml(model());
+      assert.match(html, /\.card\.clickable \{ cursor: pointer; \}/);
+      assert.match(html, /card\.addEventListener\('click'/);
+      assert.match(html, /closest\('button'\)/);
+    });
+  });
+
   describe('escaping', () => {
     it('neutralises HTML injected through the detail', () => {
       const html = buildReactionHtml(model({ detail: '<script>alert(1)</script>' }));

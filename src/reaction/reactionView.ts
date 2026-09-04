@@ -118,6 +118,7 @@ export function buildReactionHtml(model: ReactionViewModel): string {
     from { transform: scale(0.94); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
   }
+  .card.clickable { cursor: pointer; }
   .cat {
     display: block;
     width: 100%;
@@ -175,7 +176,7 @@ export function buildReactionHtml(model: ReactionViewModel): string {
          alt="An orange cat laughing" />
     <h1>${headline}${repeatBadge}</h1>
     <p id="detail" class="detail">${detail}</p>
-    <p id="sound-off" class="note" hidden>Sound could not start automatically.</p>
+    <p id="sound-off" class="note" hidden>Click anywhere to play the laugh.</p>
     <div class="actions">
       <button id="play-sound" type="button" hidden>Play sound</button>
       <button id="close" class="secondary" type="button">Dismiss</button>
@@ -192,6 +193,7 @@ export function buildReactionHtml(model: ReactionViewModel): string {
       var soundOff = document.getElementById('sound-off');
       var playBtn = document.getElementById('play-sound');
       var closeBtn = document.getElementById('close');
+      var card = document.querySelector('.card');
       var reduceMotion = !!(window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -260,6 +262,17 @@ export function buildReactionHtml(model: ReactionViewModel): string {
       });
 
       if (playBtn) { playBtn.addEventListener('click', function () { playSound(); }); }
+      // Autoplay is blocked without a user gesture, so make the whole card a
+      // one-click unlock: clicking the cat anywhere that is not a button plays the
+      // laugh. Keyboard users keep the explicit "Play sound" button.
+      if (audio && card) {
+        card.classList.add('clickable');
+        card.addEventListener('click', function (event) {
+          var target = event.target;
+          if (target && target.closest && target.closest('button')) { return; }
+          playSound();
+        });
+      }
       if (closeBtn) {
         closeBtn.addEventListener('click', function () {
           vscode.postMessage({ command: 'close' });
