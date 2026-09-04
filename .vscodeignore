@@ -14,3 +14,4 @@ eslint.config.mjs
 .gitignore
 docs/**
 assets/Prompt.md
+.qoder
