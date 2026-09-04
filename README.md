@@ -5,10 +5,12 @@
 SkillIssue is a VS Code extension that playfully reacts when a development
 workflow fails. Run a test suite, a TypeScript build, a linter or a production
 build — as a VS Code **task** or typed straight into the **integrated terminal** —
-and if it fails, a laughing cat appears and the laugh plays (2×). The first time
-you click anywhere on the card to unlock the browser's autoplay policy; after that
-the panel stays alive so every future failure makes sound automatically. If a
-workflow succeeds, SkillIssue stays completely out of your way.
+and if it fails, a laughing cat appears and the laugh plays (2×). By default the
+sound plays in the **background** through your OS's own audio player, so it needs
+no click and works even when VS Code isn't focused. (An optional `webview` backend
+plays inside the panel instead; because browsers gate autoplay, that mode asks for
+one click the first time, then keeps the panel alive so later failures play on
+their own.) If a workflow succeeds, SkillIssue stays completely out of your way.
 
 SkillIssue is strictly **observational**. It never changes exit codes, output or
 the behaviour of the command you ran. A failing command fails exactly the same
@@ -36,6 +38,7 @@ This project is being built phase by phase from the plan in
 | 10 | Production readiness & packaging | ✅ Complete |
 | 11 | Final product review | ✅ Complete |
 | Post-review | Integrated-terminal detection & unlock-once sound | ✅ Complete |
+| Post-review | Background (native OS) sound — plays with no click | ✅ Complete |
 
 See `docs/ARCHITECTURE.md` for the architectural
 decisions that guide the implementation.
@@ -87,7 +90,8 @@ Every setting lives under the `skillissue` namespace (open Settings and search
 | `skillissue.enabled` | `true` | Master switch. When off, SkillIssue never reacts. |
 | `skillissue.sound.enabled` | `true` | Play the laughing-cat audio with the reaction (the laugh plays 2×). |
 | `skillissue.sound.volume` | `1` | Audio volume, from `0` (muted) to `1` (full). |
-| `skillissue.reaction.durationSeconds` | `5` | How long the cat is shown before the panel quiets to a subtle "listening" idle (sound on) or dismisses (sound off); `0` keeps the cat showing. |
+| `skillissue.sound.backend` | `system` | How the laugh plays: `system` uses a native OS audio player in the **background** (no click, works unfocused); `webview` plays inside the panel (may need one click to unlock browser audio). |
+| `skillissue.reaction.durationSeconds` | `5` | How long the cat is shown before it dismisses (or, with the `webview` backend, quiets to a subtle "listening" idle that keeps audio unlocked); `0` keeps the cat showing. |
 | `skillissue.reaction.cooldownSeconds` | `0` | Minimum spacing between reactions; `0` disables the cooldown. |
 | `skillissue.workflows.monitoredKinds` | `[]` | Workflow kinds to watch (`test`, `build`, `compile`, `lint`, `script`, `unknown`); empty watches all. |
 | `skillissue.workflows.include` | `[]` | Only react when the operation name contains one of these substrings; empty includes all. |
@@ -129,7 +133,7 @@ VS Code with `code --install-extension skillissue-<version>.vsix`; publish with
 ## Testing
 
 SkillIssue is tested at two levels so that most behaviour can be verified
-without driving a real developer workflow. Both suites are green: **169 unit +
+without driving a real developer workflow. Both suites are green: **182 unit +
 21 integration** tests.
 
 * **Unit tests** (`src/test/unit/**`) — pure logic with **no `vscode` import**.
@@ -153,7 +157,7 @@ user-data directory `@vscode/test-cli` provisions, never your real settings.
 
 ```text
 .
-├── assets/                  # Product media (cat GIF, audio), the store icon + the plan
+├── assets/                  # Product media (cat GIF, MP3 + WAV audio), the store icon + the plan
 ├── docs/
 │   └── ARCHITECTURE.md      # Architectural decisions & discovered constraints
 ├── src/
@@ -164,6 +168,7 @@ user-data directory `@vscode/test-cli` provisions, never your real settings.
 │   ├── detection/           # VS Code Tasks API + Terminal Shell Execution API → domain events (pure mapping + adapters)
 │   ├── policy/              # Reaction policy: does an outcome deserve a cat? (pure)
 │   ├── reaction/            # Cat meme WebView (pure markup + VS Code panel controller)
+│   ├── audio/               # Native OS sound player (background audio; pure command selection)
 │   ├── orchestration/       # The loop: detection → policy → reaction (pure)
 │   ├── config/              # Typed user settings: pure mapping + VS Code reader
 │   └── test/
@@ -190,8 +195,10 @@ the test suite as described in the architecture document.
 The **source code** is released under the MIT License — see the `LICENSE` file.
 
 The **bundled meme media** — `assets/orange-cat-laughing.gif`,
-`assets/cat-laughing-at-you.mp3` and `assets/cat-laughing-cat-laughing-meme.png`
-— are third-party “cat laughing” meme assets of unclear provenance, included
+`assets/cat-laughing-at-you.mp3`, `assets/cat-laughing-at-you.wav` (a WAV render of
+the same clip for the native background player) and
+`assets/cat-laughing-cat-laughing-meme.png` — are third-party “cat laughing” meme
+assets of unclear provenance, included
 solely for novelty. They are **not** covered by the MIT licence, and their rights
 must be cleared (or the media replaced with licensed/original equivalents) before
 SkillIssue is published publicly.

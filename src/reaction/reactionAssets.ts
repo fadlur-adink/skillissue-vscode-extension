@@ -15,8 +15,10 @@ export const REACTION_ASSET_DIR = 'assets';
 export interface ReactionAssetFiles {
   /** Animated laughing cat shown as the centrepiece. */
   readonly gif: string;
-  /** Laughing audio played alongside the GIF. */
+  /** Laughing audio (MP3) played inside the WebView backend. */
   readonly audio: string;
+  /** The same laugh as WAV, played by the native OS audio backend. */
+  readonly audioWav: string;
   /** Static still used when the user prefers reduced motion. */
   readonly poster: string;
 }
@@ -25,5 +27,6 @@ export interface ReactionAssetFiles {
 export const REACTION_ASSETS: ReactionAssetFiles = {
   gif: 'orange-cat-laughing.gif',
   audio: 'cat-laughing-at-you.mp3',
+  audioWav: 'cat-laughing-at-you.wav',
   poster: 'cat-laughing-cat-laughing-meme.png',
 };

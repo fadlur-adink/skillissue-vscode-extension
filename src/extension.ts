@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { NativeSoundPlayer } from './audio/nativeSoundPlayer';
 import { SkillIssueConfig } from './config/skillIssueConfig';
 import {
   ABOUT_COMMAND_ID,
@@ -14,6 +15,7 @@ import { TerminalExecutionDetector } from './detection/terminalDetector';
 import { createOutputChannelLogger } from './logging/outputChannelLogger';
 import { SkillIssueOrchestrator } from './orchestration/skillIssueOrchestrator';
 import { CatReactionController } from './reaction/catReactionController';
+import { REACTION_ASSET_DIR, REACTION_ASSETS } from './reaction/reactionAssets';
 import { createReactionRequest } from './reaction/reactionRequest';
 
 /**
@@ -44,19 +46,37 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  // Background sound: a native OS audio player (afplay / paplay / PowerShell …)
+  // plays the bundled WAV straight from Node, so the laugh needs no WebView and no
+  // click-to-unlock. This backs the default `system` sound backend; the `webview`
+  // backend plays through the panel instead. Every error is contained in the player.
+  const soundFile = vscode.Uri.joinPath(
+    context.extensionUri,
+    REACTION_ASSET_DIR,
+    REACTION_ASSETS.audioWav,
+  ).fsPath;
+  const systemSound = new NativeSoundPlayer(logger, () => soundFile);
+  context.subscriptions.push({ dispose: () => systemSound.dispose() });
+
   // Phase 4 — the reaction experience (the cat). Isolated from detection: it only
   // knows how to *present* a reaction when handed a request. The preview command
   // triggers it directly so the UI can be exercised without a real failure.
-  // Phase 6 — presentation settings (sound, volume, duration) are pulled live
-  // from configuration per reaction, so changes apply without a reload.
-  const reaction = new CatReactionController(context.extensionUri, logger, () => {
-    const settings = config.read();
-    return {
-      soundEnabled: settings.soundEnabled,
-      volume: settings.volume,
-      durationMs: settings.durationMs,
-    };
-  });
+  // Phase 6 — presentation settings (sound, backend, volume, duration) are pulled
+  // live from configuration per reaction, so changes apply without a reload.
+  const reaction = new CatReactionController(
+    context.extensionUri,
+    logger,
+    () => {
+      const settings = config.read();
+      return {
+        soundEnabled: settings.soundEnabled,
+        soundBackend: settings.soundBackend,
+        volume: settings.volume,
+        durationMs: settings.durationMs,
+      };
+    },
+    (volume) => systemSound.play(volume),
+  );
   context.subscriptions.push(reaction);
   // A settings change may alter the rendered markup (e.g. sound on/off), so close
   // any open panel; the next reaction rebuilds it with the fresh settings.

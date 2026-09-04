@@ -23,6 +23,7 @@ describe('reaction/reactionAssets', () => {
   it('names the shipped media exactly', () => {
     assert.equal(REACTION_ASSETS.gif, 'orange-cat-laughing.gif');
     assert.equal(REACTION_ASSETS.audio, 'cat-laughing-at-you.mp3');
+    assert.equal(REACTION_ASSETS.audioWav, 'cat-laughing-at-you.wav');
     assert.equal(REACTION_ASSETS.poster, 'cat-laughing-cat-laughing-meme.png');
   });
 

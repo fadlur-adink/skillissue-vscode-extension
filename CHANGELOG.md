@@ -32,13 +32,18 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reload or rebuild.
 - **Meme experience polish**: a single reused panel, `preserveFocus`,
   Escape/button/tab dismissal, a `×N` streak badge, configurable volume,
-  blocked-audio fallback and `prefers-reduced-motion` support. The whole reaction
-  card is a one-click target that plays the laugh (WebView autoplay is
-  gesture-gated), with the explicit "Play sound" button kept for keyboard users.
-  The laugh now plays **2× per reaction**, and instead of disposing the panel after
-  the auto-dismiss delay (whenever sound is on) it **settles into a subtle idle
-  "listening" state** so a single unlock carries across every later failure —
-  future reactions make sound automatically with no further click.
-- A **two-tier test suite** (169 unit + 21 integration tests) covering the domain
+  blocked-audio fallback and `prefers-reduced-motion` support. The laugh plays
+  **2× per reaction**.
+- **Background sound (new default)**: the laugh now plays through a native OS
+  audio player (`afplay` / `paplay` / `aplay` / PowerShell `SoundPlayer`) spawned
+  from the Node extension host, so it needs **no click to unlock** and is audible
+  even when VS Code is not focused. A bundled WAV (`assets/cat-laughing-at-you.wav`)
+  backs this, since WAV is the one format every native player decodes. Pick the
+  backend with `skillissue.sound.backend` (`system` — the default — or `webview`).
+  The original in-panel `<audio>` lives on as the `webview` backend: its card is a
+  one-click target (WebView autoplay is gesture-gated, with a "Play sound" button
+  for keyboard users) that then **settles into a subtle idle "listening" state** so
+  a single unlock carries across every later failure.
+- A **two-tier test suite** (182 unit + 21 integration tests) covering the domain
   model, task **and** terminal detection, policy, orchestration, reaction markup,
-  configuration and the VS Code-facing lifecycle.
+  native sound playback, configuration and the VS Code-facing lifecycle.

@@ -46,6 +46,7 @@ export class SkillIssueConfig implements vscode.Disposable {
       enabled: config.get('enabled'),
       soundEnabled: config.get('sound.enabled'),
       volume: config.get('sound.volume'),
+      soundBackend: config.get('sound.backend'),
       durationSeconds: config.get('reaction.durationSeconds'),
       cooldownSeconds: config.get('reaction.cooldownSeconds'),
       monitoredKinds: config.get('workflows.monitoredKinds'),

@@ -89,6 +89,7 @@ Planned modules (introduced by their owning phase — **not** stubbed early):
 | `reaction/` | 4 | Present the meme (WebView markup + panel controller); expose the `ReactionSink` seam | Controller: yes. Markup: no |
 | `orchestration/` | 5 | Connect detection → policy → reaction in one pure, contained loop | **No** |
 | `config/` | 6 | Centralised, typed access to user settings | Yes |
+| `audio/` | post-review | Background sound via a native OS player (pure command selection + a contained `child_process` spawn) | **No** |
 
 **Rule of thumb:** if a piece of logic can be expressed without `vscode`, it goes
 in a pure module (`core/`, `policy/`) so it can be unit tested in isolation.
@@ -234,13 +235,15 @@ Design decisions later phases rely on:
   the image has alt text, controls are keyboard-focusable, and
   `prefers-reduced-motion` swaps the animated GIF for the static poster and
   disables the entrance animation.
-* **Quiets to idle, not just away.** With sound on, the panel keeps living after
-  the auto-dismiss duration in a subtle "listening" state so a single audio unlock
-  carries across every future failure; with sound off it disposes on the timer.
-  Re-triggering resets the timer and wakes an idling panel. It is fully
-  `Disposable`, clears its timer and listeners on teardown, and is safe to dispose
-  repeatedly. Every entry point is wrapped in try/catch + logging — a meme failure
-  can never break the developer's workflow.
+* **Quiets to idle, not just away (webview backend only).** With the `webview`
+  audio backend the panel keeps living after the auto-dismiss duration in a subtle
+  "listening" state so a single audio unlock carries across every future failure.
+  With the default `system` backend — or with sound off — there is no unlock to
+  preserve, so the panel simply disposes on the timer. Re-triggering resets the
+  timer and wakes an idling panel. It is fully `Disposable`, clears its timer and
+  listeners on teardown, and is safe to dispose repeatedly. Every entry point is
+  wrapped in try/catch + logging — a meme failure can never break the developer's
+  workflow.
 * **Triggerable independently.** The `SkillIssue: Preview Reaction` command
   (`skillissue.previewReaction`) shows the cat on demand, satisfying "can be
   triggered independently from the rest of the system" without any detection.
@@ -560,6 +563,47 @@ path is unchanged.
   is safe. A real terminal command is deliberately **not** executed in tests — it
   needs shell integration and would be flaky (mirroring `detection.test.ts`).
 
+### Background (native) audio backend (post-review enhancement — implemented)
+
+The WebView sound design had one friction it could never fully remove: a WebView
+is Chromium, so its `<audio>` obeys the browser autoplay policy and the very first
+laugh needs a user click to unlock. A similar extension played its sound with no
+such click, which prompted a simpler, more robust path — play the sound **outside**
+the WebView altogether.
+
+* **The extension host is Node, not Chromium — so it has no autoplay policy.**
+  `src/audio/nativeSoundPlayer.ts` spawns the operating system's own audio player
+  through `node:child_process` and plays the bundled clip in the **background**:
+  no WebView, no click, and audible even when VS Code is not focused. This is why
+  the sound now "just works" the first time.
+* **WAV is the one universally playable format.** macOS `afplay`, Linux
+  `aplay`/`paplay` and Windows PowerShell's `System.Media.SoundPlayer` all decode
+  WAV, but not reliably MP3 (e.g. `paplay`'s libsndfile cannot). So the meme clip
+  ships a second time as `assets/cat-laughing-at-you.wav`, used only by the native
+  backend; the WebView keeps using the MP3.
+* **Pure selection, contained execution.** `soundCommandCandidates(platform, file,
+  volume)` is a **pure** function returning an ordered, best-first list of player
+  commands (per platform, with the volume mapped onto the players that support it),
+  so the risky platform matrix is unit-tested without spawning anything.
+  `NativeSoundPlayer` owns the `child_process` boundary: a missing player (`ENOENT`)
+  falls through to the next candidate, a `generation` counter turns stale async
+  callbacks into no-ops, `cancel`/`dispose` stop in-flight playback, and `play()`
+  **never throws** — honouring "a meme failure must never become a workflow
+  failure".
+* **A setting, defaulting to background.** `skillissue.sound.backend` selects
+  `system` (the new default — native, background, no click) or `webview` (the
+  original in-panel `<audio>` with its one-time unlock and idle keep-alive). The
+  controller branches on it: only the `webview` backend renders an `<audio>`
+  element, sets `retainContextWhenHidden` and keeps the panel idling after the
+  timer; the `system` backend leaves the panel a silent visual that disposes
+  normally while the OS plays the laugh. `sound.enabled` still masters both, and
+  the clip plays 2× in either mode.
+* **Layering is preserved.** `nativeSoundPlayer.ts` imports only
+  `node:child_process` and the pure `Logger` — never `vscode`. The controller stays
+  free of `child_process` by receiving an injected `playSystemSound(volume)`
+  callback, and `extension.ts` (the composition root) is the only place that builds
+  the player and points it at the bundled WAV.
+
 ---
 
 ## 4. Extension lifecycle & composition
@@ -592,8 +636,9 @@ path is unchanged.
 
 ## 5. Media packaging
 
-Product media (cat GIF, laughing audio, poster PNG) and the original store
-`icon.png` live in `assets/` and are shipped inside the VSIX. `.vscodeignore`
+Product media (cat GIF, laughing audio in both MP3 and WAV, poster PNG) and the
+original store `icon.png` live in `assets/` and are shipped inside the VSIX.
+`.vscodeignore`
 excludes development-only files (sources, tests, configs, source maps,
 `.tsbuildinfo`, `assets/Prompt.md`) but keeps the media.
 
@@ -601,6 +646,11 @@ WebView media is exposed through `Webview.asWebviewUri(...)` with a
 `localResourceRoots` restriction — never a raw `file://` path. Implemented in
 Phase 4: `CatReactionController` limits the resource roots to `assets/` and
 resolves the GIF, audio and poster through `asWebviewUri`.
+
+The native `system` audio backend is the one deliberate exception: it plays
+`assets/cat-laughing-at-you.wav` **directly from disk** (a real filesystem path
+handed to the OS player), because it runs in the Node extension host rather than
+the sandboxed WebView.
 
 ---
 
@@ -621,8 +671,9 @@ resolves the GIF, audio and poster through `asWebviewUri`.
 ## 7. Testing strategy
 
 Two tiers, chosen so most behaviour is verifiable **without** a real developer
-workflow. Both run green: **169 unit + 21 integration** tests (the counts include
-the post-review integrated-terminal detection and sound-polish work).
+workflow. Both run green: **182 unit + 21 integration** tests (the counts include
+the post-review integrated-terminal detection, sound-polish and native
+background-audio work).
 
 1. **Unit tests** (`src/test/unit/**`, Mocha, `.mocharc.json`) — pure logic,
    **no `vscode` import**. Fast, offline, deterministic. This is where `core/`,
@@ -712,16 +763,20 @@ implementation (Phase 2 onward). Known-ahead-of-time items:
 * **No true overlay above the workbench.** Extensions cannot draw a z-layer over
   the VS Code UI, so the reaction is a `WebviewPanel` (a centered, themed,
   auto-dismissing card) rather than a floating overlay. Confirmed in Phase 4.
-* **WebView audio autoplay is gesture-gated — so unlock once, then stay alive.**
-  Chromium rejects a programmatic `audio.play()` without user interaction, and the
-  reaction panel keeps `preserveFocus` so it never receives a gesture. SkillIssue
-  never steals focus to force it; instead the whole card is a single click target
-  that plays the laugh (with a "Click anywhere to play the laugh" hint), alongside
-  the explicit "Play sound" button for keyboard users. Because the unlock lives in
-  the WebView *document*, the panel is now retained in a subtle idle state (rather
-  than disposed) while sound is on — `retainContextWhenHidden: true` — so that one
-  click carries across every later failure. Disposing the panel (closing the tab,
-  or reloading the window) resets it, requiring a single re-click.
+* **WebView audio autoplay is gesture-gated — so the default backend avoids the
+  WebView for sound.** Chromium rejects a programmatic `audio.play()` without user
+  interaction, and the reaction panel keeps `preserveFocus` so it never receives a
+  gesture. The default `system` backend sidesteps this entirely by playing through
+  a native OS player from the Node extension host, which has no autoplay policy —
+  see the "Background (native) audio backend" subsection in §3. Only the optional
+  `webview` backend is subject to the gate; there, SkillIssue never steals focus to
+  force it — the whole card is a single click target that plays the laugh (with a
+  "Click anywhere to play the laugh" hint), alongside the explicit "Play sound"
+  button for keyboard users. Because the unlock lives in the WebView *document*,
+  that backend retains the panel in a subtle idle state (rather than disposing it)
+  while sound is on — `retainContextWhenHidden: true` — so one click carries across
+  every later failure. Disposing the panel (closing the tab, or reloading the
+  window) resets it, requiring a single re-click.
 * **Integration tests need a real desktop session.** `@vscode/test-cli`
   downloads VS Code and launches Electron, which requires a display and a
   writable temp/user-data directory. They cannot run in a fully

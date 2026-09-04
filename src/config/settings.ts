@@ -12,11 +12,15 @@ import { ReactionPolicySettings, RepeatedFailurePolicy } from '../policy/policyS
  * adapter. This is the single, centralised place settings are interpreted.
  */
 
+/** How the laughing sound is produced. */
+export type SoundBackend = 'system' | 'webview';
+
 /** The raw shape read from `workspace.getConfiguration('skillissue')`. */
 export interface RawSkillIssueSettings {
   readonly enabled?: unknown;
   readonly soundEnabled?: unknown;
   readonly volume?: unknown;
+  readonly soundBackend?: unknown;
   readonly durationSeconds?: unknown;
   readonly cooldownSeconds?: unknown;
   readonly monitoredKinds?: unknown;
@@ -36,6 +40,8 @@ export interface SkillIssueSettings {
   readonly soundEnabled: boolean;
   /** Audio volume in `[0, 1]`. */
   readonly volume: number;
+  /** How the laugh is produced: a native OS player or the WebView. */
+  readonly soundBackend: SoundBackend;
   /** How long the panel stays visible (ms); `0` keeps it until dismissed. */
   readonly durationMs: number;
   /** Minimum spacing between reactions (ms); `0` disables the cooldown. */
@@ -72,6 +78,7 @@ export function toSkillIssueSettings(raw: RawSkillIssueSettings): SkillIssueSett
     policy,
     soundEnabled: toBoolean(raw.soundEnabled, true),
     volume,
+    soundBackend: toSoundBackend(raw.soundBackend),
     durationMs: Math.round(durationSeconds * 1000),
     cooldownMs: Math.round(cooldownSeconds * 1000),
     detectTerminalCommands: toBoolean(raw.detectTerminalCommands, true),
@@ -85,6 +92,11 @@ export function createDefaultSkillIssueSettings(): SkillIssueSettings {
 
 function toBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+/** Defaults to the native "system" player; only an explicit "webview" opts in. */
+function toSoundBackend(value: unknown): SoundBackend {
+  return value === 'webview' ? 'webview' : 'system';
 }
 
 function toNumber(value: unknown, fallback: number): number {

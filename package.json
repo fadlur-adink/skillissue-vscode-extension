@@ -54,6 +54,16 @@
           "maximum": 1,
           "description": "Reaction audio volume, from 0 (muted) to 1 (full)."
         },
+        "skillissue.sound.backend": {
+          "type": "string",
+          "enum": ["system", "webview"],
+          "default": "system",
+          "enumDescriptions": [
+            "Play through a native OS audio player in the background — no click needed, works even when VS Code is not focused.",
+            "Play inside the reaction WebView — may need one click to unlock browser audio."
+          ],
+          "description": "How the laughing sound is played."
+        },
         "skillissue.reaction.durationSeconds": {
           "type": "number",
           "default": 5,

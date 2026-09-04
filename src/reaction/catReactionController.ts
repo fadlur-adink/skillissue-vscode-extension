@@ -18,10 +18,10 @@ import { buildReactionHtml } from './reactionView';
  * Lifecycle rules:
  * - At most **one** panel exists. A new reaction while it is open **reuses** it
  *   (reveal + replay) instead of stacking panels.
- * - After `durationMs` the reaction quiets down. With sound on the panel is kept
- *   alive in a subtle idle state rather than destroyed, so the one-time audio
- *   unlock survives and every later failure plays by itself; with sound off it
- *   auto-dismisses. Reacting again re-shows the cat and resets the timer.
+ * - After `durationMs` the reaction quiets down. With the `webview` audio backend
+ *   the panel is kept alive in a subtle idle state so its one-time audio unlock
+ *   survives for later failures; otherwise — the default `system` backend plays in
+ *   the background — it simply auto-dismisses. Reacting again re-shows the cat.
  * - Assets are exposed only through `asWebviewUri` within `localResourceRoots`.
  */
 export class CatReactionController implements vscode.Disposable, ReactionSink {
@@ -37,6 +37,11 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
     private readonly extensionUri: vscode.Uri,
     private readonly logger: Logger,
     private readonly getOptions: () => ReactionOptions = () => ({}),
+    /**
+     * Plays the laugh through a native OS audio player (the `system` backend).
+     * Injected so this class stays free of `child_process`; a no-op by default.
+     */
+    private readonly playSystemSound: (volume: number) => void = () => {},
   ) {}
 
   /** Shows (or reuses the panel to show) the reaction for a request. */
@@ -47,12 +52,18 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
     this.pendingMessage = request.message ?? '';
     this.pendingCount = request.repeatCount ?? 1;
     try {
+      const options = this.getOptions();
       const panel = this.ensurePanel();
       panel.reveal(this.viewColumn, true);
       this.idle = false; // a fresh reaction wakes a panel that was quietly idling
       // If the webview is already live this plays immediately; if it is (re)loading
       // the message is re-sent by the `ready` handshake in handleWebviewMessage.
       void panel.webview.postMessage(this.reactionMessage());
+      // Background audio: the `system` backend plays through a native OS player,
+      // independent of the WebView — no click-to-unlock, works while unfocused.
+      if (this.usesSystemAudio(options)) {
+        this.playSystemSound(options.volume ?? 1);
+      }
       this.scheduleDismiss();
     } catch (error) {
       // A meme failure must never surface as a workflow failure.
@@ -89,6 +100,16 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
     return this.getOptions().viewColumn ?? vscode.ViewColumn.Active;
   }
 
+  /** True when sound should come from a native OS player (background, no click). */
+  private usesSystemAudio(options: ReactionOptions): boolean {
+    return (options.soundEnabled ?? true) && (options.soundBackend ?? 'system') === 'system';
+  }
+
+  /** True when the WebView itself should carry the `<audio>` element. */
+  private usesWebViewAudio(options: ReactionOptions): boolean {
+    return (options.soundEnabled ?? true) && (options.soundBackend ?? 'system') === 'webview';
+  }
+
   private ensurePanel(): vscode.WebviewPanel {
     if (this.panel) {
       return this.panel;
@@ -99,9 +120,10 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
       { viewColumn: this.viewColumn, preserveFocus: true },
       {
         enableScripts: true,
-        // Keep the document alive while hidden so the audio unlock (a per-document,
-        // sticky user gesture) is not lost when the developer switches tabs.
-        retainContextWhenHidden: true,
+        // Only the `webview` audio backend benefits from retaining the document (to
+        // preserve its one-time audio unlock across hide/show). The default `system`
+        // backend needs no such state, so avoid the extra memory cost.
+        retainContextWhenHidden: this.usesWebViewAudio(this.getOptions()),
         localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, REACTION_ASSET_DIR)],
       },
     );
@@ -129,7 +151,9 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
       posterUri: toUri(REACTION_ASSETS.poster),
       headline: options.headline ?? DEFAULT_HEADLINE,
       detail: this.pendingMessage,
-      soundEnabled: options.soundEnabled ?? true,
+      // The WebView only carries audio in the `webview` backend; with the native
+      // `system` backend the panel is a silent visual and the OS plays the sound.
+      soundEnabled: this.usesWebViewAudio(options),
       volume: options.volume ?? 1,
       repeatCount: this.pendingCount,
     });
@@ -172,11 +196,12 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
   }
 
   /**
-   * After `durationMs` the reaction quiets down. When sound is on the panel is kept
-   * alive in an idle state (rather than destroyed) so Chromium's one-time audio
-   * unlock survives into every future failure — that is what lets the laugh play
-   * automatically from then on. The developer still closes it via Dismiss, Escape
-   * or the tab's ×. With sound off there is nothing to preserve, so it disposes.
+   * After `durationMs` the reaction quiets down. With the `webview` audio backend
+   * the panel is kept alive in an idle state (rather than destroyed) so Chromium's
+   * one-time audio unlock survives into every future failure. The default `system`
+   * backend plays in the background, so there is nothing to preserve and the panel
+   * simply disposes. Either way the developer can close it via Dismiss, Escape or
+   * the tab's ×.
    */
   private scheduleDismiss(): void {
     this.clearDismissTimer();
@@ -185,7 +210,7 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
     if (duration <= 0) {
       return; // 0 (or negative) keeps the reaction showing until dismissed.
     }
-    const keepAliveForSound = options.soundEnabled ?? true;
+    const keepAliveForSound = this.usesWebViewAudio(options);
     this.dismissTimer = setTimeout(() => {
       this.dismissTimer = undefined;
       if (keepAliveForSound) {
@@ -209,6 +234,12 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
 export interface ReactionOptions {
   /** When false the meme is silent (no `<audio>` element is rendered). */
   readonly soundEnabled?: boolean;
+  /**
+   * Where the laugh comes from: `'system'` (a native OS player, in the background
+   * — the default) or `'webview'` (the panel's own `<audio>`, which may need one
+   * click to unlock). Ignored when {@link ReactionOptions.soundEnabled} is false.
+   */
+  readonly soundBackend?: 'system' | 'webview';
   /** Audio volume in `[0, 1]`. Defaults to 1. */
   readonly volume?: number;
   /** Milliseconds before auto-dismiss; `<= 0` keeps it until dismissed. */

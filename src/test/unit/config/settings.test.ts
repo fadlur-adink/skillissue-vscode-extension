@@ -21,6 +21,7 @@ describe('config/settings', () => {
       assert.equal(s.policy.repeatedFailures, 'always');
       assert.equal(s.soundEnabled, true);
       assert.equal(s.volume, 1);
+      assert.equal(s.soundBackend, 'system');
       assert.equal(s.durationMs, DEFAULT_DURATION_SECONDS * 1000);
       assert.equal(s.cooldownMs, DEFAULT_COOLDOWN_SECONDS * 1000);
       assert.equal(s.detectTerminalCommands, true);
@@ -82,6 +83,20 @@ describe('config/settings', () => {
     it('falls back to 1 for a non-finite or non-number value', () => {
       assert.equal(toSkillIssueSettings({ volume: Number.NaN }).volume, 1);
       assert.equal(toSkillIssueSettings({ volume: 'loud' }).volume, 1);
+    });
+  });
+
+  describe('soundBackend', () => {
+    it('defaults to the native system player', () => {
+      assert.equal(toSkillIssueSettings({}).soundBackend, 'system');
+    });
+
+    it('respects an explicit webview choice', () => {
+      assert.equal(toSkillIssueSettings({ soundBackend: 'webview' }).soundBackend, 'webview');
+    });
+
+    it('falls back to system for an unrecognised value', () => {
+      assert.equal(toSkillIssueSettings({ soundBackend: 'bluetooth' }).soundBackend, 'system');
     });
   });
 
