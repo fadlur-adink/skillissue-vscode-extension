@@ -13,5 +13,6 @@ out/test/**
 eslint.config.mjs
 .gitignore
 docs/**
+CONTRIBUTING.md
 assets/Prompt.md
 .qoder
