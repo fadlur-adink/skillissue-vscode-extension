@@ -1,0 +1,16 @@
+.vscode/**
+.vscode-test/**
+.npm-cache/**
+.github/**
+src/**
+out/test/**
+**/*.map
+**/*.tsbuildinfo
+**/*.ts
+**/tsconfig.json
+.mocharc.json
+.vscode-test.mjs
+eslint.config.mjs
+.gitignore
+docs/**
+assets/Prompt.md

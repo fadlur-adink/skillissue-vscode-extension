@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Compiled output
+out/
+
+# VS Code test instances / downloaded builds
+.vscode-test/
+
+# Local npm cache (sandbox/offline installs)
+.npm-cache/
+
+# Packaged extension
+*.vsix
+
+# Logs & OS cruft
+npm-debug.log*
+.DS_Store
+Thumbs.db

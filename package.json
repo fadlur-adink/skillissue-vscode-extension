@@ -1,0 +1,153 @@
+{
+  "name": "skillissue",
+  "displayName": "SkillIssue",
+  "description": "Your code failed. The cat knows. The cat is laughing at you.",
+  "version": "0.0.1",
+  "publisher": "skillissue",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "meme",
+    "fun",
+    "cat",
+    "build",
+    "tests"
+  ],
+  "main": "./out/extension.js",
+  "icon": "assets/icon.png",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "skillissue.about",
+        "title": "SkillIssue: About"
+      },
+      {
+        "command": "skillissue.previewReaction",
+        "title": "SkillIssue: Preview Reaction"
+      }
+    ],
+    "configuration": {
+      "title": "SkillIssue",
+      "properties": {
+        "skillissue.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Master switch. When off, SkillIssue never reacts."
+        },
+        "skillissue.sound.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Play the laughing-cat audio with the reaction."
+        },
+        "skillissue.sound.volume": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Reaction audio volume, from 0 (muted) to 1 (full)."
+        },
+        "skillissue.reaction.durationSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "description": "How long the reaction stays visible, in seconds. Use 0 to keep it until dismissed."
+        },
+        "skillissue.reaction.cooldownSeconds": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Minimum spacing between reactions, in seconds. Use 0 to disable the cooldown."
+        },
+        "skillissue.workflows.monitoredKinds": {
+          "type": "array",
+          "default": [],
+          "description": "Workflow kinds to watch. Leave empty to watch all kinds.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "test",
+              "build",
+              "compile",
+              "lint",
+              "script",
+              "unknown"
+            ]
+          }
+        },
+        "skillissue.workflows.include": {
+          "type": "array",
+          "default": [],
+          "description": "Only react to operations whose name contains one of these substrings (case-insensitive). Leave empty to include all.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skillissue.workflows.exclude": {
+          "type": "array",
+          "default": [],
+          "description": "Never react to operations whose name contains one of these substrings (case-insensitive). Excludes win over includes.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skillissue.workflows.treatCancellationAsFailure": {
+          "type": "boolean",
+          "default": false,
+          "description": "React when a monitored workflow is cancelled."
+        },
+        "skillissue.workflows.treatUnknownAsFailure": {
+          "type": "boolean",
+          "default": false,
+          "description": "React when a monitored workflow ends with an unknown result."
+        },
+        "skillissue.repeatedFailures": {
+          "type": "string",
+          "default": "always",
+          "enum": [
+            "always",
+            "first-only"
+          ],
+          "markdownEnumDescriptions": [
+            "React to every failure in a streak.",
+            "React only to the first failure in a streak; stay quiet until it succeeds again."
+          ],
+          "description": "How to handle a streak of repeated failures of the same operation."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "pretest": "npm run compile && npm run lint",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "mocha",
+    "test:integration": "vscode-test",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.19.43",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.9.2",
+    "eslint": "^9.39.5",
+    "mocha": "^11.8.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.69.0"
+  }
+}
