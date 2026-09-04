@@ -5,8 +5,10 @@
 SkillIssue is a VS Code extension that playfully reacts when a development
 workflow fails. Run a test suite, a TypeScript build, a linter or a production
 build — as a VS Code **task** or typed straight into the **integrated terminal** —
-and if it fails, a laughing cat appears with the appropriate sound. If it
-succeeds, SkillIssue stays completely out of your way.
+and if it fails, a laughing cat appears and the laugh plays (2×). The first time
+you click anywhere on the card to unlock the browser's autoplay policy; after that
+the panel stays alive so every future failure makes sound automatically. If a
+workflow succeeds, SkillIssue stays completely out of your way.
 
 SkillIssue is strictly **observational**. It never changes exit codes, output or
 the behaviour of the command you ran. A failing command fails exactly the same
@@ -33,7 +35,7 @@ This project is being built phase by phase from the plan in
 | 9 | Testing & reliability | ✅ Complete |
 | 10 | Production readiness & packaging | ✅ Complete |
 | 11 | Final product review | ✅ Complete |
-| Post-review | Integrated-terminal detection & one-click sound | ✅ Complete |
+| Post-review | Integrated-terminal detection & unlock-once sound | ✅ Complete |
 
 See `docs/ARCHITECTURE.md` for the architectural
 decisions that guide the implementation.
@@ -83,9 +85,9 @@ Every setting lives under the `skillissue` namespace (open Settings and search
 | Setting | Default | Description |
 | ------- | ------- | ----------- |
 | `skillissue.enabled` | `true` | Master switch. When off, SkillIssue never reacts. |
-| `skillissue.sound.enabled` | `true` | Play the laughing-cat audio with the reaction. |
+| `skillissue.sound.enabled` | `true` | Play the laughing-cat audio with the reaction (the laugh plays 2×). |
 | `skillissue.sound.volume` | `1` | Audio volume, from `0` (muted) to `1` (full). |
-| `skillissue.reaction.durationSeconds` | `5` | How long the reaction stays visible; `0` keeps it until dismissed. |
+| `skillissue.reaction.durationSeconds` | `5` | How long the cat is shown before the panel quiets to a subtle "listening" idle (sound on) or dismisses (sound off); `0` keeps the cat showing. |
 | `skillissue.reaction.cooldownSeconds` | `0` | Minimum spacing between reactions; `0` disables the cooldown. |
 | `skillissue.workflows.monitoredKinds` | `[]` | Workflow kinds to watch (`test`, `build`, `compile`, `lint`, `script`, `unknown`); empty watches all. |
 | `skillissue.workflows.include` | `[]` | Only react when the operation name contains one of these substrings; empty includes all. |
@@ -127,7 +129,7 @@ VS Code with `code --install-extension skillissue-<version>.vsix`; publish with
 ## Testing
 
 SkillIssue is tested at two levels so that most behaviour can be verified
-without driving a real developer workflow. Both suites are green: **167 unit +
+without driving a real developer workflow. Both suites are green: **169 unit +
 21 integration** tests.
 
 * **Unit tests** (`src/test/unit/**`) — pure logic with **no `vscode` import**.

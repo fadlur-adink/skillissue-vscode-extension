@@ -234,11 +234,13 @@ Design decisions later phases rely on:
   the image has alt text, controls are keyboard-focusable, and
   `prefers-reduced-motion` swaps the animated GIF for the static poster and
   disables the entrance animation.
-* **Auto-dismiss + safe disposal.** The panel closes itself after a default
-  duration (re-triggering resets the timer), is fully `Disposable`, clears its
-  timer and listeners on teardown and is safe to dispose repeatedly. Every entry
-  point is wrapped in try/catch + logging — a meme failure can never break the
-  developer's workflow.
+* **Quiets to idle, not just away.** With sound on, the panel keeps living after
+  the auto-dismiss duration in a subtle "listening" state so a single audio unlock
+  carries across every future failure; with sound off it disposes on the timer.
+  Re-triggering resets the timer and wakes an idling panel. It is fully
+  `Disposable`, clears its timer and listeners on teardown, and is safe to dispose
+  repeatedly. Every entry point is wrapped in try/catch + logging — a meme failure
+  can never break the developer's workflow.
 * **Triggerable independently.** The `SkillIssue: Preview Reaction` command
   (`skillissue.previewReaction`) shows the cat on demand, satisfying "can be
   triggered independently from the rest of the system" without any detection.
@@ -393,8 +395,10 @@ positioning, dismissal, repeats and “can I keep working?”. Decisions:
   `preserveFocus: true`, so the developer's cursor stays exactly where it was —
   they can keep typing immediately. The cat is glanceable, not modal.
 * **It gets out of the way.** A single centered card (max 440px, GIF max 300px)
-  auto-dismisses after `reaction.durationSeconds` (default 5s; `0` keeps it until
-  dismissed). Re-triggering resets the timer rather than stacking panels.
+  quiets down after `reaction.durationSeconds` (default 5s; `0` keeps it showing):
+  with sound on it settles into a compact "listening" strip rather than vanishing,
+  with sound off it auto-dismisses. Re-triggering resets the timer rather than
+  stacking panels.
 * **One panel, reused.** At most one reaction panel exists; a repeat failure
   reveals and replays it instead of opening another tab, so failures never pile up
   visually.
@@ -404,10 +408,11 @@ positioning, dismissal, repeats and “can I keep working?”. Decisions:
   running gag (“Skill Issue ×3”) rather than a stuck meme. For tighter control the
   `reaction.cooldownSeconds` and `repeatedFailures: first-only` settings (Phase 6)
   dial the frequency down.
-* **Sound is honest and bounded.** Audio plays at `sound.volume` (default full,
-  configurable down to mute) and can be silenced entirely with `sound.enabled`. If
-  Chromium blocks the gesture-less `play()`, a “Play sound” control and a note
-  appear instead of failing silently.
+* **Sound is honest and unlocked once.** The laugh plays 2× per reaction at
+  `sound.volume` (default full, configurable down to mute) and can be silenced
+  entirely with `sound.enabled`. If Chromium blocks the gesture-less `play()`, the
+  card is a single click target (plus a "Play sound" button for keyboard users);
+  that one click keeps the panel alive so later failures play by themselves.
 * **Animation respects the user.** `prefers-reduced-motion` swaps the animated GIF
   for the static poster and disables the entrance pop; otherwise the GIF restarts
   from frame 0 on each reaction.
@@ -538,13 +543,16 @@ path is unchanged.
   `skillissue.workflows.detectTerminalCommands` (default `true`) turns the whole
   feature off; the gate is read live per event. The dependence on shell
   integration is documented (§9), not hidden.
-* **Sound: one click is the platform floor.** A WebView cannot auto-play audio
-  without a user gesture (Chromium policy) and the panel keeps `preserveFocus`, so
-  it never receives one. Rather than steal focus (annoying), the whole reaction
-  card is now a single click target that plays the laugh, with a clearer hint
-  ("Click anywhere to play the laugh"); the explicit "Play sound" button remains
-  for keyboard users. Once a reused panel is unlocked, later reactions play
-  without another click.
+* **Sound: unlock once, then reuse the live panel.** A WebView cannot auto-play
+  audio without a user gesture (Chromium policy) and the panel keeps
+  `preserveFocus`, so it never receives one. Rather than steal focus (annoying),
+  the whole reaction card is a single click target that plays the laugh (with a
+  "Click anywhere to play the laugh" hint); the explicit "Play sound" button
+  remains for keyboard users. That first click unlocks the document, and because
+  the panel is now **kept alive in a subtle idle state** instead of being disposed
+  after the timer (whenever sound is on), every later failure plays automatically
+  with no further click. Closing the tab (or Dismiss / Escape) re-arms the one-time
+  click. The laugh also plays 2× per reaction so it reads as a real gag.
 * **Coverage.** `commandMapping` is unit tested across package managers,
   standalone and subcommand tools, wrappers/env prefixes, path/extension forms and
   shell noise; `terminalDetection.test.ts` verifies inside a real host that the
@@ -613,8 +621,8 @@ resolves the GIF, audio and poster through `asWebviewUri`.
 ## 7. Testing strategy
 
 Two tiers, chosen so most behaviour is verifiable **without** a real developer
-workflow. Both run green: **167 unit + 21 integration** tests (the counts include
-the post-review integrated-terminal detection work).
+workflow. Both run green: **169 unit + 21 integration** tests (the counts include
+the post-review integrated-terminal detection and sound-polish work).
 
 1. **Unit tests** (`src/test/unit/**`, Mocha, `.mocharc.json`) — pure logic,
    **no `vscode` import**. Fast, offline, deterministic. This is where `core/`,
@@ -704,13 +712,16 @@ implementation (Phase 2 onward). Known-ahead-of-time items:
 * **No true overlay above the workbench.** Extensions cannot draw a z-layer over
   the VS Code UI, so the reaction is a `WebviewPanel` (a centered, themed,
   auto-dismissing card) rather than a floating overlay. Confirmed in Phase 4.
-* **WebView audio autoplay is gesture-gated — one click is the floor.** Chromium
-  rejects a programmatic `audio.play()` without user interaction, and the reaction
-  panel keeps `preserveFocus` so it never receives a gesture. SkillIssue never
-  steals focus to force it; instead the whole card is a single click target that
-  plays the laugh (with a "Click anywhere to play the laugh" hint), alongside the
-  explicit "Play sound" button for keyboard users. A reused panel stays unlocked,
-  so later reactions in the same session play without another click.
+* **WebView audio autoplay is gesture-gated — so unlock once, then stay alive.**
+  Chromium rejects a programmatic `audio.play()` without user interaction, and the
+  reaction panel keeps `preserveFocus` so it never receives a gesture. SkillIssue
+  never steals focus to force it; instead the whole card is a single click target
+  that plays the laugh (with a "Click anywhere to play the laugh" hint), alongside
+  the explicit "Play sound" button for keyboard users. Because the unlock lives in
+  the WebView *document*, the panel is now retained in a subtle idle state (rather
+  than disposed) while sound is on — `retainContextWhenHidden: true` — so that one
+  click carries across every later failure. Disposing the panel (closing the tab,
+  or reloading the window) resets it, requiring a single re-click.
 * **Integration tests need a real desktop session.** `@vscode/test-cli`
   downloads VS Code and launches Electron, which requires a display and a
   writable temp/user-data directory. They cannot run in a fully

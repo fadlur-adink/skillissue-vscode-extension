@@ -18,7 +18,10 @@ import { buildReactionHtml } from './reactionView';
  * Lifecycle rules:
  * - At most **one** panel exists. A new reaction while it is open **reuses** it
  *   (reveal + replay) instead of stacking panels.
- * - The panel auto-dismisses after `durationMs`; reacting again resets the timer.
+ * - After `durationMs` the reaction quiets down. With sound on the panel is kept
+ *   alive in a subtle idle state rather than destroyed, so the one-time audio
+ *   unlock survives and every later failure plays by itself; with sound off it
+ *   auto-dismisses. Reacting again re-shows the cat and resets the timer.
  * - Assets are exposed only through `asWebviewUri` within `localResourceRoots`.
  */
 export class CatReactionController implements vscode.Disposable, ReactionSink {
@@ -27,6 +30,7 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
   private dismissTimer: ReturnType<typeof setTimeout> | undefined;
   private pendingMessage = '';
   private pendingCount = 1;
+  private idle = false;
   private disposed = false;
 
   constructor(
@@ -45,6 +49,7 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
     try {
       const panel = this.ensurePanel();
       panel.reveal(this.viewColumn, true);
+      this.idle = false; // a fresh reaction wakes a panel that was quietly idling
       // If the webview is already live this plays immediately; if it is (re)loading
       // the message is re-sent by the `ready` handshake in handleWebviewMessage.
       void panel.webview.postMessage(this.reactionMessage());
@@ -94,7 +99,9 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
       { viewColumn: this.viewColumn, preserveFocus: true },
       {
         enableScripts: true,
-        retainContextWhenHidden: false,
+        // Keep the document alive while hidden so the audio unlock (a per-document,
+        // sticky user gesture) is not lost when the developer switches tabs.
+        retainContextWhenHidden: true,
         localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, REACTION_ASSET_DIR)],
       },
     );
@@ -104,6 +111,7 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
       panel.webview.onDidReceiveMessage((message) => this.handleWebviewMessage(message, panel)),
     );
     this.panel = panel;
+    this.idle = false;
     this.logger.debug('Reaction webview created');
     return panel;
   }
@@ -137,8 +145,18 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
       return;
     }
     if (message.command === 'ready') {
-      // The view just (re)loaded — deliver the current reaction reliably.
-      void panel.webview.postMessage(this.reactionMessage());
+      if (this.idle) {
+        // We were idling when the (retained) view reloaded — restore the quiet
+        // state rather than replaying a stale failure.
+        void panel.webview.postMessage({ command: 'idle' });
+      } else {
+        // The view just (re)loaded — deliver the current reaction reliably.
+        void panel.webview.postMessage(this.reactionMessage());
+      }
+    } else if (message.command === 'idle') {
+      // A retained view came back while we were idling; note it so the next
+      // `ready` handshake restores the quiet state instead of replaying.
+      this.idle = true;
     } else if (message.command === 'close') {
       panel.dispose();
     }
@@ -153,15 +171,29 @@ export class CatReactionController implements vscode.Disposable, ReactionSink {
     this.logger.debug('Reaction webview disposed');
   }
 
+  /**
+   * After `durationMs` the reaction quiets down. When sound is on the panel is kept
+   * alive in an idle state (rather than destroyed) so Chromium's one-time audio
+   * unlock survives into every future failure — that is what lets the laugh play
+   * automatically from then on. The developer still closes it via Dismiss, Escape
+   * or the tab's ×. With sound off there is nothing to preserve, so it disposes.
+   */
   private scheduleDismiss(): void {
     this.clearDismissTimer();
-    const duration = this.getOptions().durationMs ?? DEFAULT_DURATION_MS;
+    const options = this.getOptions();
+    const duration = options.durationMs ?? DEFAULT_DURATION_MS;
     if (duration <= 0) {
-      return; // 0 (or negative) keeps the panel until dismissed manually.
+      return; // 0 (or negative) keeps the reaction showing until dismissed.
     }
+    const keepAliveForSound = options.soundEnabled ?? true;
     this.dismissTimer = setTimeout(() => {
       this.dismissTimer = undefined;
-      this.panel?.dispose();
+      if (keepAliveForSound) {
+        this.idle = true;
+        void this.panel?.webview.postMessage({ command: 'idle' });
+      } else {
+        this.panel?.dispose();
+      }
     }, duration);
   }
 

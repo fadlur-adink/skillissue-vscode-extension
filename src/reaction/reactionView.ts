@@ -8,7 +8,9 @@
  * GIF/audio choreography — is fully unit-testable outside VS Code.
  *
  * The view is intentionally dumb: it renders what it is given and reacts to
- * `react` messages. It never inspects output and never decides whether to react.
+ * `react` and `idle` messages. It never inspects output and never decides whether
+ * to react. Because the host keeps this document alive across reactions, a single
+ * user click unlocks audio for the whole session (see the controller).
  */
 
 /** Everything the WebView needs to render, pre-resolved by the host. */
@@ -67,6 +69,9 @@ export function buildReactionHtml(model: ReactionViewModel): string {
   const headline = escapeHtml(model.headline);
   const detail = escapeHtml(model.detail);
   const volume = clampVolume(model.volume);
+  // How many times the laugh plays per reaction (>1 lengthens it). The view reads
+  // this off the audio element, so it is the single source of the loop count.
+  const soundLoops = 2;
   const repeat =
     typeof model.repeatCount === 'number' && model.repeatCount > 1 ? model.repeatCount : 0;
   const repeatBadge =
@@ -74,7 +79,7 @@ export function buildReactionHtml(model: ReactionViewModel): string {
       ? `<span id="repeat" class="repeat">×${repeat}</span>`
       : `<span id="repeat" class="repeat" hidden></span>`;
   const audioTag = model.soundEnabled
-    ? `<audio id="laugh" src="${escapeHtml(model.audioUri)}" data-volume="${volume}" preload="auto"></audio>`
+    ? `<audio id="laugh" src="${escapeHtml(model.audioUri)}" data-volume="${volume}" data-loops="${soundLoops}" preload="auto"></audio>`
     : '';
 
   return `<!DOCTYPE html>
@@ -119,6 +124,15 @@ export function buildReactionHtml(model: ReactionViewModel): string {
     to { transform: scale(1); opacity: 1; }
   }
   .card.clickable { cursor: pointer; }
+  .idle-hint { font-size: 0.95em; color: var(--vscode-descriptionForeground); }
+  .card.is-idle { gap: 8px; padding: 14px 18px; box-shadow: none; animation: none; }
+  .card.is-idle .cat,
+  .card.is-idle h1,
+  .card.is-idle .detail { display: none; }
+  /* Quiet UI hides the click hint; the idle hint only shows while idling. */
+  .card.is-idle .note { display: none; }
+  .idle-hint[hidden] { display: none !important; }
+  .card.is-idle .idle-hint[hidden] { display: block !important; }
   .cat {
     display: block;
     width: 100%;
@@ -177,6 +191,7 @@ export function buildReactionHtml(model: ReactionViewModel): string {
     <h1>${headline}${repeatBadge}</h1>
     <p id="detail" class="detail">${detail}</p>
     <p id="sound-off" class="note" hidden>Click anywhere to play the laugh.</p>
+    <p id="idle-hint" class="idle-hint" hidden>SkillIssue is listening — this tab stays open so the laugh plays by itself on every future failure. Close it (Dismiss, Esc, or the ×) to stop.</p>
     <div class="actions">
       <button id="play-sound" type="button" hidden>Play sound</button>
       <button id="close" class="secondary" type="button">Dismiss</button>
@@ -191,9 +206,12 @@ export function buildReactionHtml(model: ReactionViewModel): string {
       var detail = document.getElementById('detail');
       var repeatBadge = document.getElementById('repeat');
       var soundOff = document.getElementById('sound-off');
+      var idleHint = document.getElementById('idle-hint');
       var playBtn = document.getElementById('play-sound');
       var closeBtn = document.getElementById('close');
       var card = document.querySelector('.card');
+      var loopsRemaining = 0;   // extra plays queued after the current one
+      var cardActive = true;    // false once the panel has settled into idle
       var reduceMotion = !!(window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -222,9 +240,15 @@ export function buildReactionHtml(model: ReactionViewModel): string {
         audio.volume = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
       }
 
+      function loopCount() {
+        var n = parseInt(audio.getAttribute('data-loops'), 10);
+        return Number.isFinite(n) && n > 1 ? n : 1;
+      }
+
       function playSound() {
         if (!audio) { return; }
         applyVolume();
+        loopsRemaining = loopCount() - 1; // 'ended' plays the remainder
         try {
           audio.currentTime = 0;
           var promise = audio.play();
@@ -234,6 +258,23 @@ export function buildReactionHtml(model: ReactionViewModel): string {
           }
         } catch (err) {
           setSoundBlocked(true);
+        }
+      }
+
+      // The first play() needs a user gesture; follow-up loops do not, because the
+      // document is already active. Replaying on 'ended' lengthens the laugh (2×
+      // by default) without asking for a second click.
+      function replayLoop() {
+        if (!audio || loopsRemaining <= 0) { return; }
+        loopsRemaining -= 1;
+        try {
+          audio.currentTime = 0;
+          var promise = audio.play();
+          if (promise && typeof promise.then === 'function') {
+            promise.then(undefined, function () { loopsRemaining = 0; });
+          }
+        } catch (err) {
+          loopsRemaining = 0;
         }
       }
 
@@ -250,28 +291,54 @@ export function buildReactionHtml(model: ReactionViewModel): string {
       }
 
       function react(message, count) {
+        setActive();
         if (typeof message === 'string' && detail) { detail.textContent = message; }
         setRepeat(count);
         restartGif();
         playSound();
       }
 
+      // Presentation states. Idle is the quiet, always-listening state a retained
+      // panel rests in between failures so the one-time unlock is never lost.
+      function setActive() {
+        cardActive = true;
+        if (card) { card.classList.remove('is-idle'); }
+        if (idleHint) { idleHint.hidden = true; }
+      }
+
+      function setIdle() {
+        if (!cardActive) { return; }
+        cardActive = false;
+        if (card) { card.classList.add('is-idle'); }
+        if (idleHint) { idleHint.hidden = false; }
+        if (soundOff) { soundOff.hidden = true; }
+        if (playBtn) { playBtn.hidden = true; }
+      }
+
       window.addEventListener('message', function (event) {
         var msg = event.data;
-        if (msg && msg.command === 'react') { react(msg.message, msg.count); }
+        if (!msg || typeof msg.command !== 'string') { return; }
+        if (msg.command === 'react') {
+          react(msg.message, msg.count);
+        } else if (msg.command === 'idle') {
+          setIdle();
+        }
       });
 
       if (playBtn) { playBtn.addEventListener('click', function () { playSound(); }); }
       // Autoplay is blocked without a user gesture, so make the whole card a
       // one-click unlock: clicking the cat anywhere that is not a button plays the
-      // laugh. Keyboard users keep the explicit "Play sound" button.
+      // laugh. This unlocks audio for the rest of the panel's life, so later
+      // failures play by themselves. Keyboard users keep the "Play sound" button.
       if (audio && card) {
         card.classList.add('clickable');
         card.addEventListener('click', function (event) {
+          if (!cardActive) { return; } // ignore stray clicks while quietly idling
           var target = event.target;
           if (target && target.closest && target.closest('button')) { return; }
           playSound();
         });
+        audio.addEventListener('ended', replayLoop);
       }
       if (closeBtn) {
         closeBtn.addEventListener('click', function () {

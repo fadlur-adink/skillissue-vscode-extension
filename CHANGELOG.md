@@ -31,10 +31,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **User settings** under the `skillissue.*` namespace, applied live with no
   reload or rebuild.
 - **Meme experience polish**: a single reused panel, `preserveFocus`,
-  auto-dismiss, Escape/button/tab dismissal, a `×N` streak badge, configurable
-  volume, blocked-audio fallback and `prefers-reduced-motion` support. The whole
-  reaction card is now a one-click target that plays the laugh (WebView autoplay
-  is gesture-gated), with the explicit "Play sound" button kept for keyboard users.
-- A **two-tier test suite** (167 unit + 21 integration tests) covering the domain
+  Escape/button/tab dismissal, a `×N` streak badge, configurable volume,
+  blocked-audio fallback and `prefers-reduced-motion` support. The whole reaction
+  card is a one-click target that plays the laugh (WebView autoplay is
+  gesture-gated), with the explicit "Play sound" button kept for keyboard users.
+  The laugh now plays **2× per reaction**, and instead of disposing the panel after
+  the auto-dismiss delay (whenever sound is on) it **settles into a subtle idle
+  "listening" state** so a single unlock carries across every later failure —
+  future reactions make sound automatically with no further click.
+- A **two-tier test suite** (169 unit + 21 integration tests) covering the domain
   model, task **and** terminal detection, policy, orchestration, reaction markup,
   configuration and the VS Code-facing lifecycle.

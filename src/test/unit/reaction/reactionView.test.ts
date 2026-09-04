@@ -103,6 +103,23 @@ describe('reaction/reactionView', () => {
     });
   });
 
+  describe('sound looping & idle persistence', () => {
+    it('plays the laugh a fixed number of times per reaction', () => {
+      const html = buildReactionHtml(model({ soundEnabled: true }));
+      assert.match(html, /data-loops="2"/);
+      assert.match(html, /function replayLoop\(\)/);
+      assert.match(html, /addEventListener\('ended', replayLoop\)/);
+    });
+
+    it('keeps the panel in a subtle idle state so a one-time unlock persists', () => {
+      const html = buildReactionHtml(model());
+      assert.match(html, /id="idle-hint"/);
+      assert.match(html, /\.card\.is-idle/);
+      assert.match(html, /msg\.command === 'idle'/);
+      assert.match(html, /function setIdle\(\)/);
+    });
+  });
+
   describe('escaping', () => {
     it('neutralises HTML injected through the detail', () => {
       const html = buildReactionHtml(model({ detail: '<script>alert(1)</script>' }));
