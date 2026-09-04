@@ -155,12 +155,12 @@ VS Code with `code --install-extension skillissue-<version>.vsix`.
 
 Before publishing:
 
-* **Declare the `repository` field** in `package.json`. `vsce` otherwise warns
-  *"A 'repository' field is missing from the 'package.json' manifest file."* A
-  local build can bypass it with `vsce package --allow-missing-repository`, but
-  the proper fix is to declare the repo — and the `repository` URL is also what
-  lets the Marketplace resolve the README's **relative image and file links**
-  (e.g. the cat GIF). Without it those links can break in the published listing.
+* **The `repository` field is declared** in `package.json` (the GitHub URL) — keep
+  it in sync if the repo ever moves. Without it `vsce` warns *"A 'repository'
+  field is missing from the 'package.json' manifest file."* (a local build can
+  bypass that with `vsce package --allow-missing-repository`), and the
+  `repository` URL is also what lets the Marketplace resolve the README's
+  **relative image and file links** (e.g. the cat GIF).
 * **Keep `README.md` user-facing.** It is the Marketplace listing. Development
   detail belongs here in `CONTRIBUTING.md` and in `docs/` — both are excluded from
   the VSIX by `.vscodeignore`, so they never ship to end users.

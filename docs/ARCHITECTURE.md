@@ -478,9 +478,10 @@ installed, and reviewed it end-to-end for publishing.
 * **Manifest reviewed.** No unnecessary permissions; activation stays
   `onStartupFinished` (lazy, but early enough to observe tasks — see §4); zero
   runtime dependencies; one `contributes.configuration` schema and two commands.
-  No `repository` is declared yet (packaging uses `--allow-missing-repository`),
-  so the README's internal references are plain text rather than relative links
-  that would break in the packaged listing.
+  A `repository` URL is now declared, which is what lets `vsce`/the Marketplace
+  resolve the README's relative image (the cat GIF); the README's references to
+  `CONTRIBUTING.md` and `docs/` stay plain text, since neither is bundled in the
+  VSIX (both are `.vscodeignore`d).
 * **Licensing is honest.** The code is MIT; the bundled cat-meme GIF/MP3/PNG are
   third-party media of unclear provenance, documented in the README as requiring
   rights clearance (or replacement) before any public publish. `CHANGELOG.md`
