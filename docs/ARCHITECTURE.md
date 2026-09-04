@@ -1,9 +1,13 @@
 # SkillIssue — Architecture & Decisions
 
-This document records the architectural decisions established in **Phase 0** so
-that later phases build on them instead of rediscovering them. It is a living
-document: when a phase reveals a new VS Code constraint or forces a design
-change, the discovery is recorded here.
+This document is the **source of truth for SkillIssue as built** — the canonical
+reference for the shipping code's architecture, module boundaries, decisions and
+discovered constraints. It started life as the design established in **Phase 0**
+and remains a living document: whenever new work reveals a VS Code constraint or
+forces a design change, the discovery is recorded here so this description and the
+final code never drift apart. The original phase-by-phase build plan
+(`assets/Prompt.md`) has been retired as obsolete; where that initial plan and the
+as-built code ever differed, this document is authoritative.
 
 ---
 
@@ -639,9 +643,8 @@ the WebView altogether.
 
 Product media (cat GIF, laughing audio in both MP3 and WAV, poster PNG) and the
 original store `icon.png` live in `assets/` and are shipped inside the VSIX.
-`.vscodeignore`
-excludes development-only files (sources, tests, configs, source maps,
-`.tsbuildinfo`, `assets/Prompt.md`) but keeps the media.
+`.vscodeignore` excludes development-only files (sources, tests, configs, source
+maps, `.tsbuildinfo`, `docs/` and `CONTRIBUTING.md`) but keeps the media.
 
 WebView media is exposed through `Webview.asWebviewUri(...)` with a
 `localResourceRoots` restriction — never a raw `file://` path. Implemented in

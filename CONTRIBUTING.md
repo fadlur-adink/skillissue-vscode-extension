@@ -89,7 +89,7 @@ user-data directory `@vscode/test-cli` provisions, never your real settings.
 
 ```text
 .
-├── assets/                  # Product media (cat GIF, MP3 + WAV audio), the store icon + the plan
+├── assets/                  # Product media (cat GIF, MP3 + WAV audio) + the store icon
 ├── docs/
 │   └── ARCHITECTURE.md      # Architectural decisions & discovered constraints
 ├── src/
@@ -126,7 +126,8 @@ user-data directory `@vscode/test-cli` provisions, never your real settings.
 
 ## Project status
 
-SkillIssue was built phase by phase from the plan in `assets/Prompt.md`.
+SkillIssue was built phase by phase; `docs/ARCHITECTURE.md` is the source of truth
+for the as-built design and the decisions behind it.
 
 | Phase | Description | Status |
 | ----- | ----------- | ------ |
