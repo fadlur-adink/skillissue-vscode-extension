@@ -81,5 +81,35 @@ describe('audio/nativeSoundPlayer', () => {
       assert.doesNotThrow(() => player.cancel());
       assert.doesNotThrow(() => player.dispose());
     });
+
+    it('fires onFinish immediately when no sound file is configured', () => {
+      const player = new NativeSoundPlayer(createNoopLogger(), () => undefined, 'linux');
+      let finished = 0;
+      player.play(1, 2, () => {
+        finished += 1;
+      });
+      assert.equal(finished, 1);
+      player.dispose();
+    });
+
+    it('fires onFinish immediately when the platform has no player', () => {
+      const player = new NativeSoundPlayer(createNoopLogger(), () => FILE, 'aix');
+      let finished = 0;
+      player.play(1, 2, () => {
+        finished += 1;
+      });
+      assert.equal(finished, 1);
+      player.dispose();
+    });
+
+    it('does not fire onFinish for a play() ignored after dispose', () => {
+      const player = new NativeSoundPlayer(createNoopLogger(), () => FILE, 'aix');
+      player.dispose();
+      let finished = 0;
+      player.play(1, 2, () => {
+        finished += 1;
+      });
+      assert.equal(finished, 0);
+    });
   });
 });

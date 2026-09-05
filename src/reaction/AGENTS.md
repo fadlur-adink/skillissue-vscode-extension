@@ -30,7 +30,7 @@ Renders a pre-computed `ReactionRequest` as a laughing-cat WebView. The UI never
 
 ## NOTES
 - **CSP:** `default-src 'none'`; img/media/font from `webview.cspSource`; style/script gated by a fresh `crypto.randomBytes` nonce per render.
-- **Audio unlock choreography:** `webview` backend keeps the panel alive (`retainContextWhenHidden`) and settles into `idle` so the one-time click unlock persists; `system` backend plays natively and disposes the panel on the dismiss timer.
+- **Audio unlock choreography:** `webview` backend keeps the panel alive (`retainContextWhenHidden`) and settles into `idle` so the one-time click unlock persists; `system` backend plays natively and disposes the panel once settled. A reaction settles only when the dismiss timer has elapsed AND the laugh has finished (`soundEnded` from the view, `onFinish` from the native player) — the cat never hides mid-laugh, and closing the panel stops the background sound.
 - **Handshake:** the view posts `ready` on load; the controller re-sends the pending `react` (or restores `idle`) so `postMessage` never races (re)load.
 - **Accessibility:** `role="status" aria-live="polite"`; `prefers-reduced-motion` swaps the GIF for the static poster; Escape/Dismiss/× close the panel.
 - **`localResourceRoots` = `assets/` only**, resolved via `asWebviewUri` — nothing else is exposed to the WebView.
