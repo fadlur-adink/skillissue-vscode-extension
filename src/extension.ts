@@ -75,7 +75,8 @@ export function activate(context: vscode.ExtensionContext): void {
         durationMs: settings.durationMs,
       };
     },
-    (volume) => systemSound.play(volume),
+    (volume, onFinish) => systemSound.play(volume, 2, onFinish),
+    () => systemSound.cancel(),
   );
   context.subscriptions.push(reaction);
   // A settings change may alter the rendered markup (e.g. sound on/off), so close

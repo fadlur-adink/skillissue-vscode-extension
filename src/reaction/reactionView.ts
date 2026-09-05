@@ -245,6 +245,12 @@ export function buildReactionHtml(model: ReactionViewModel): string {
         return Number.isFinite(n) && n > 1 ? n : 1;
       }
 
+      // Tells the host the laugh is over (every loop played, or playback was
+      // blocked/failed) so it can settle the panel exactly when the sound ends.
+      function noteSoundEnded() {
+        vscode.postMessage({ command: 'soundEnded' });
+      }
+
       function playSound() {
         if (!audio) { return; }
         applyVolume();
@@ -254,10 +260,11 @@ export function buildReactionHtml(model: ReactionViewModel): string {
           var promise = audio.play();
           if (promise && typeof promise.then === 'function') {
             promise.then(function () { setSoundBlocked(false); },
-                         function () { setSoundBlocked(true); });
+                         function () { setSoundBlocked(true); noteSoundEnded(); });
           }
         } catch (err) {
           setSoundBlocked(true);
+          noteSoundEnded();
         }
       }
 
@@ -271,10 +278,11 @@ export function buildReactionHtml(model: ReactionViewModel): string {
           audio.currentTime = 0;
           var promise = audio.play();
           if (promise && typeof promise.then === 'function') {
-            promise.then(undefined, function () { loopsRemaining = 0; });
+            promise.then(undefined, function () { loopsRemaining = 0; noteSoundEnded(); });
           }
         } catch (err) {
           loopsRemaining = 0;
+          noteSoundEnded();
         }
       }
 
@@ -298,6 +306,15 @@ export function buildReactionHtml(model: ReactionViewModel): string {
         playSound();
       }
 
+      // Stops the laugh immediately: pauses playback and drops any queued loops,
+      // so the sound never outlives the visible cat.
+      function stopSound() {
+        loopsRemaining = 0;
+        if (audio) {
+          try { audio.pause(); } catch (err) { /* pausing a dead element is harmless */ }
+        }
+      }
+
       // Presentation states. Idle is the quiet, always-listening state a retained
       // panel rests in between failures so the one-time unlock is never lost.
       function setActive() {
@@ -309,6 +326,7 @@ export function buildReactionHtml(model: ReactionViewModel): string {
       function setIdle() {
         if (!cardActive) { return; }
         cardActive = false;
+        stopSound();
         if (card) { card.classList.add('is-idle'); }
         if (idleHint) { idleHint.hidden = false; }
         if (soundOff) { soundOff.hidden = true; }
@@ -338,7 +356,13 @@ export function buildReactionHtml(model: ReactionViewModel): string {
           if (target && target.closest && target.closest('button')) { return; }
           playSound();
         });
-        audio.addEventListener('ended', replayLoop);
+        audio.addEventListener('ended', function () {
+          if (loopsRemaining > 0) {
+            replayLoop();
+          } else {
+            noteSoundEnded();
+          }
+        });
       }
       if (closeBtn) {
         closeBtn.addEventListener('click', function () {

@@ -90,7 +90,7 @@ Changes apply instantly — no reload, no rebuild, no mercy.
 | `skillissue.sound.enabled` | `true` | Play the laugh with the reaction (it plays 2×). |
 | `skillissue.sound.volume` | `1` | Laugh volume, from `0` (mute the cat) to `1` (full cackle). |
 | `skillissue.sound.backend` | `system` | `system` = background native OS player (no click, works unfocused); `webview` = in-panel audio (may need one click to unlock). |
-| `skillissue.reaction.durationSeconds` | `5` | How long the cat lingers before dismissing (or, on the `webview` backend, quiets to a "listening" idle that keeps audio unlocked); `0` keeps it up until you wave it off. |
+| `skillissue.reaction.durationSeconds` | `5` | Minimum time the cat lingers before dismissing (or, on the `webview` backend, quieting to a "listening" idle that keeps audio unlocked) — it never leaves before the laugh has finished; `0` keeps it up until you wave it off. |
 | `skillissue.reaction.cooldownSeconds` | `0` | Minimum gap between laughs; `0` = the cat reacts every single time. |
 | `skillissue.workflows.monitoredKinds` | `[]` | Which kinds to watch (`test`, `build`, `compile`, `lint`, `script`, `unknown`); empty = watch everything. |
 | `skillissue.workflows.include` | `[]` | Only laugh when the name contains one of these substrings; empty = include all. |

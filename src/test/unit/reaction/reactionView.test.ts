@@ -108,7 +108,21 @@ describe('reaction/reactionView', () => {
       const html = buildReactionHtml(model({ soundEnabled: true }));
       assert.match(html, /data-loops="2"/);
       assert.match(html, /function replayLoop\(\)/);
-      assert.match(html, /addEventListener\('ended', replayLoop\)/);
+      assert.match(html, /addEventListener\('ended',/);
+    });
+
+    it('tells the host when the laugh has finished, so the cat hides with the sound', () => {
+      const html = buildReactionHtml(model({ soundEnabled: true }));
+      assert.match(html, /command: 'soundEnded'/);
+      assert.match(html, /loopsRemaining > 0/);
+      assert.match(html, /setSoundBlocked\(true\); noteSoundEnded\(\)/);
+    });
+
+    it('stops the laugh when settling into idle so sound never outlives the cat', () => {
+      const html = buildReactionHtml(model({ soundEnabled: true }));
+      assert.match(html, /function stopSound\(\)/);
+      assert.match(html, /audio\.pause\(\)/);
+      assert.match(html, /function setIdle\(\) \{[^]*?stopSound\(\)/);
     });
 
     it('keeps the panel in a subtle idle state so a one-time unlock persists', () => {

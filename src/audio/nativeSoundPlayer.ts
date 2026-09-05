@@ -103,24 +103,33 @@ export class NativeSoundPlayer {
     private readonly platform: NodeJS.Platform = process.platform,
   ) {}
 
-  /** Starts background playback. Contained: any problem is logged, never thrown. */
-  play(volume = 1, loops = 2): void {
+  /**
+   * Starts background playback. Contained: any problem is logged, never thrown.
+   *
+   * `onFinish` fires exactly once when playback is over — after the final loop,
+   * or immediately when nothing could be played (no file, no player) — so callers
+   * can synchronise UI with the sound without polling. It never fires for a
+   * superseded or cancelled playback.
+   */
+  play(volume = 1, loops = 2, onFinish?: () => void): void {
     if (this.disposed) {
       return;
     }
     const file = this.resolveFile();
     if (!file) {
       this.logger.debug('System audio skipped: no sound file configured');
+      onFinish?.();
       return;
     }
     const candidates = soundCommandCandidates(this.platform, file, volume);
     if (candidates.length === 0) {
       this.logger.debug(`System audio skipped: no player for platform "${this.platform}"`);
+      onFinish?.();
       return;
     }
     // Starting a new sound supersedes any still-playing one.
     this.cancel();
-    this.run(candidates, 0, Math.max(1, Math.floor(loops)), this.generation);
+    this.run(candidates, 0, Math.max(1, Math.floor(loops)), this.generation, onFinish);
   }
 
   private run(
@@ -128,13 +137,14 @@ export class NativeSoundPlayer {
     index: number,
     remaining: number,
     generation: number,
+    onFinish?: () => void,
   ): void {
-    if (
-      this.disposed ||
-      generation !== this.generation ||
-      remaining <= 0 ||
-      index >= candidates.length
-    ) {
+    if (this.disposed || generation !== this.generation) {
+      return;
+    }
+    if (remaining <= 0 || index >= candidates.length) {
+      // Every loop played (or every player failed) — the sound is over either way.
+      onFinish?.();
       return;
     }
     const candidate = candidates[index];
@@ -146,7 +156,7 @@ export class NativeSoundPlayer {
       });
     } catch (error) {
       this.logger.debug(`System audio: spawn("${candidate.command}") threw — ${String(error)}`);
-      this.run(candidates, index + 1, remaining, generation);
+      this.run(candidates, index + 1, remaining, generation, onFinish);
       return;
     }
 
@@ -162,7 +172,7 @@ export class NativeSoundPlayer {
       }
       // Almost always ENOENT (the player is not installed) — try the next one.
       this.logger.debug(`System audio: "${candidate.command}" unavailable — ${String(error)}`);
-      this.run(candidates, index + 1, remaining, generation);
+      this.run(candidates, index + 1, remaining, generation, onFinish);
     });
     child.once('close', () => {
       if (errored || generation !== this.generation) {
@@ -172,7 +182,7 @@ export class NativeSoundPlayer {
         this.current = undefined;
       }
       // This player worked — replay it for the remaining loops.
-      this.run(candidates, index, remaining - 1, generation);
+      this.run(candidates, index, remaining - 1, generation, onFinish);
     });
   }
 
