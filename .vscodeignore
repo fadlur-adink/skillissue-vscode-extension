@@ -15,3 +15,7 @@ eslint.config.mjs
 docs/**
 CONTRIBUTING.md
 .qoder
+.codegraph
+.omo/**
+AGENTS.md
+CLAUDE.md
