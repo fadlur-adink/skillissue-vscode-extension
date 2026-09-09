@@ -18,7 +18,7 @@ export enum OperationKind {
 }
 
 /** Which execution path a detection layer observed the operation on. */
-export type OperationSource = 'task' | 'terminal' | 'unknown';
+export type OperationSource = 'task' | 'terminal' | 'testExplorer' | 'unknown';
 
 export interface Operation {
   /** Unique id for this specific run (assigned by the detection layer). */

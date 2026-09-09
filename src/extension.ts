@@ -10,6 +10,7 @@ import {
 import { describeOperationOutcome } from './core/describe';
 import { isCompletedEvent, WorkflowEvent } from './core/events';
 import { isFailure } from './core/outcome';
+import { JestResultDetector } from './detection/jestResultDetector';
 import { TaskDetector } from './detection/taskDetector';
 import { TerminalExecutionDetector } from './detection/terminalDetector';
 import { createOutputChannelLogger } from './logging/outputChannelLogger';
@@ -136,6 +137,13 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(terminalDetector);
   context.subscriptions.push(terminalDetector.onWorkflowEvent(handleWorkflowEvent));
+
+  // VS Code's stable API cannot observe TestRuns owned by another extension.
+  // vscode-jest writes a structured Jest JSON report to the OS temp directory,
+  // so this detector observes those reports without parsing Testing Output text.
+  const jestResultDetector = new JestResultDetector(logger, () => config.read().policy.enabled);
+  context.subscriptions.push(jestResultDetector);
+  context.subscriptions.push(jestResultDetector.onWorkflowEvent(handleWorkflowEvent));
 
   logger.info('SkillIssue activated.');
 }

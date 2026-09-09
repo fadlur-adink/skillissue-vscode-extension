@@ -105,7 +105,7 @@ in a pure module (`core/`, `policy/`) so it can be unit tested in isolation.
 | File | Provides |
 | ---- | -------- |
 | `outcome.ts` | `OutcomeKind` + the `OperationOutcome` union (`success` / `failure(exitCode?)` / `cancelled` / `unknown(reason?)`) with factories and type-guard predicates |
-| `operation.ts` | `OperationKind`, `OperationSource` (`task`/`terminal`/`unknown`), the `Operation` value type, `createOperation()` and `operationKey()` |
+| `operation.ts` | `OperationKind`, `OperationSource` (`task`/`terminal`/`testExplorer`/`unknown`), the `Operation` value type, `createOperation()` and `operationKey()` |
 | `events.ts` | `OperationStarted` / `OperationCompleted` lifecycle events (+ guards) |
 | `describe.ts` | `describeOperationOutcome()` → a meaningful string ("npm test failed (exit code 1)") so no consumer ever parses terminal text |
 | `workflowTracker.ts` | `WorkflowTracker`: pure per-operation state exposing consecutive-failure counts and repeat detection |
@@ -157,6 +157,25 @@ Known limitations (deliberately surfaced, not hidden):
   the Extension Development Host and watch the `SkillIssue` Output channel);
   automated end-to-end coverage of the whole loop now lives in the integration
   suite (`endToEnd.test.ts`, added in Phase 11 — see §7).
+
+#### Jest Testing UI compatibility
+
+A run started by `orta.vscode-jest` from Explorer/Testing is owned by that
+extension: it is neither a VS Code task nor an integrated-terminal shell
+execution. Stable VS Code exposes no API for observing another extension's
+`TestRun`, and vscode-jest 6.4.4 activates with a `void` return (no public result
+API). SkillIssue therefore observes the structured Jest report that vscode-jest
+creates with `--json --outputFile` in the OS temp directory
+(`jest_runner_<workspace>_<user>.json`).
+
+`jestResultDetector.ts` watches only that filename family, retries transient or
+partially-written reports, and deduplicates identical file contents. It never
+reads the Testing Output text, modifies the test process, or deletes the report.
+`jestResultMapping.ts` is the pure boundary that maps `success`, interruption and
+failure counts to the shared outcome model and builds `source: testExplorer`
+operations. This is deliberately documented as a compatibility adapter rather
+than a stable VS Code integration: vscode-jest may change its internal filename
+or JSON-report behavior in a future release.
 
 ### Reaction policy (Phase 3 — implemented)
 

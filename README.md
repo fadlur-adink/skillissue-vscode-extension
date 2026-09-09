@@ -31,13 +31,17 @@ It's not a productivity tool. It's a personality test your CI keeps failing.
 
 ## What makes the cat laugh
 
-Failed **VS Code tasks**, and failed build/test/lint commands typed straight into
-the **integrated terminal** — `npm test`, `tsc`, `next build`, `cargo test`,
+Failed **VS Code tasks**, failed Jest tests launched from Explorer/Testing via
+**Jest (`orta.vscode-jest`)**, and failed build/test/lint commands typed straight
+into the **integrated terminal** — `npm test`, `tsc`, `next build`, `cargo test`,
 `go vet`, you name it.
 
 What *doesn't* make the cat laugh: `git`, `ls`, `grep`, `cd` and every other scrap
 of ordinary shell noise. The cat has standards. (Terminal roasting needs VS Code's
-shell integration switched on for that terminal.)
+shell integration switched on for that terminal.) Jest Testing UI support observes
+the extension's structured JSON report rather than scraping its output; because
+that report is an internal vscode-jest detail, a future vscode-jest update may
+require a SkillIssue compatibility update.
 
 ---
 

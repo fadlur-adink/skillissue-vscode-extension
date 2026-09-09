@@ -6,7 +6,7 @@
 
 ## OVERVIEW
 
-VS Code extension that watches builds/tests/lints (tasks + integrated-terminal commands) and pops a laughing-cat WebView with sound on failure. TypeScript, strict, plain `tsc` → CommonJS `out/`, zero runtime deps, no bundler.
+VS Code extension that watches builds/tests/lints (tasks, integrated-terminal commands, and vscode-jest Testing UI reports) and pops a laughing-cat WebView with sound on failure. TypeScript, strict, plain `tsc` → CommonJS `out/`, zero runtime deps, no bundler.
 
 Canonical design doc: `docs/ARCHITECTURE.md` (source of truth — read before structural changes). Contributor guide: `CONTRIBUTING.md`.
 
@@ -54,6 +54,7 @@ Ignore: `.codegraph/` (symlink to external index), `.omo/` (agent state), `out/`
 | `shouldReact()` | fn | `src/policy/reactionPolicy.ts:42` | pure decision; ANDed filters, `exclude` = veto |
 | `TaskDetector` | class | `src/detection/taskDetector.ts:20` | Tasks API exitCode → domain events |
 | `TerminalExecutionDetector` | class | `src/detection/terminalDetector.ts:53` | shell-execution API via defensive shim |
+| `JestResultDetector` | class | `src/detection/jestResultDetector.ts` | vscode-jest structured temp reports → domain events |
 | `CatReactionController` | class | `src/reaction/catReactionController.ts` | owns the single WebviewPanel |
 | `buildReactionHtml()` | fn | `src/reaction/reactionView.ts` | pure document: CSP + nonce + escaping |
 | `SkillIssueConfig` | class | `src/config/skillIssueConfig.ts:16` | ONLY reader of `getConfiguration` |
@@ -77,7 +78,7 @@ Ignore: `.codegraph/` (symlink to external index), `.omo/` (agent state), `out/`
 - **NEVER alter the developer's workflow** — no touching exit codes, stdout/stderr, args, task execution. Strictly observational.
 - **NEVER let a SkillIssue error escape** — every entry point try/catch + log. `handleEvent()` and `play()` never throw.
 - **NEVER import `vscode` in pure modules** (`core/`, `policy/`, `orchestration/`, `audio/`, `reaction/reactionView|reactionRequest|reactionAssets`, `detection/*Mapping`, `config/settings`, `logging/logger`).
-- **NEVER parse terminal text** — outcome = exit code only.
+- **NEVER parse terminal or Testing Output text** — task/terminal outcomes come from exit codes; Jest Testing UI outcomes come from its structured JSON report.
 - **NEVER use raw `file://` in the WebView** — `asWebviewUri()` within `localResourceRoots` (assets/ only). Sole exception: native audio backend plays WAV from disk.
 - **NEVER guess classification** — ambiguous tools (`next`, `vite`, `node`) → `Unknown`; code-less ending → `unknown`, never `cancelled`.
 - **NEVER call `getConfiguration` outside `SkillIssueConfig`**; never expose internal `reactOnFailure`.

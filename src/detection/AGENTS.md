@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-Two thin `vscode` adapters (`taskDetector`, `terminalDetector`) subscribe to Task and shell-execution events, delegate all decision logic to pure mapping modules, and re-emit `WorkflowEvent`s through `EventEmitter`s.
+Three thin adapters observe task processes, terminal shell executions, and vscode-jest JSON reports, delegate result logic to pure mapping modules, and re-emit `WorkflowEvent`s through `EventEmitter`s.
 
 ## WHERE TO LOOK
 
@@ -12,13 +12,15 @@ Two thin `vscode` adapters (`taskDetector`, `terminalDetector`) subscribe to Tas
 | `taskMapping.ts` | pure: `outcomeFromExitCode`, `classifyTaskKind`, `buildTaskInfo`, `buildTaskOperation`, `kindFromScriptName` |
 | `terminalDetector.ts` | shell-execution API adapter via local structural shim + `typeof === 'function'` guard |
 | `commandMapping.ts` | pure: `classifyCommandLine`, `terminalWorkflowEvent`, `summarizeCommand` |
-| `../test/unit/detection/{taskMapping,commandMapping}.test.ts` | pure classifier/outcome coverage |
-| `../test/integration/{detection,terminalDetection,endToEnd}.test.ts` | adapter lifecycle + full loop |
+| `jestResultDetector.ts` | watches vscode-jest's structured `jest_runner_*.json` reports in the OS temp directory |
+| `jestResultMapping.ts` | pure: Jest report outcome, operation naming, and workspace matching |
+| `../test/unit/detection/{taskMapping,commandMapping,jestResultMapping}.test.ts` | pure classifier/outcome coverage |
+| `../test/integration/{detection,terminalDetection,jestResultDetection,endToEnd}.test.ts` | adapter lifecycle + full loop |
 
 ## CONVENTIONS
 
 - **Pure / adapter split.** `taskMapping.ts` and `commandMapping.ts` import nothing from `vscode`; they operate on a structural `TaskSnapshot` and a plain command-line string so they unit-test offline. The detectors only extract fields and manage listener lifecycle.
-- **Outcome comes from the exit code, nothing else.** `outcomeFromExitCode`: `0` → `success`, non-zero → `failure(code)`, `undefined`/`null` → `unknown`. No terminal text is read.
+- **Outcome comes from structured data, never display text.** Task/terminal paths use `outcomeFromExitCode`: `0` → `success`, non-zero → `failure(code)`, `undefined`/`null` → `unknown`. Test Explorer support reads Jest's JSON `success`/failure counts. No terminal or Testing Output text is parsed.
 - **Classification is structured-metadata-driven, strongest-first.** `classifyTaskKind` consults `definition.type` → `group` → `problemMatchers` → `source` → bounded tool-token heuristic, taking the first confident hit. `npm`/`pnpm`/`yarn` are refined by `kindFromScriptName`.
 - **Shared script-name heuristic.** `commandMapping.ts` imports `kindFromScriptName` so `npm test` typed in a terminal classifies exactly like an npm task.
 - **Noise control in the terminal.** Only build/test/lint/compile-looking commands classify; everything else is `Unknown` and `terminalWorkflowEvent` returns `undefined` so the detector emits nothing.
@@ -38,3 +40,4 @@ Two thin `vscode` adapters (`taskDetector`, `terminalDetector`) subscribe to Tas
 - **Start-miss fallback.** `TaskDetector.handleEnd` reconstructs the operation if the start event was missed (extension activated mid-task).
 - **Terminal detection is a progressive enhancement.** It reports `available === false` and no-ops without shell integration; `isEnabled` reads `workflows.detectTerminalCommands` per event (wired in `extension.ts`).
 - **Tests never execute a real terminal command.** The shell-execution end event only fires with shell integration active, which is environment-dependent and would flake. Classification is covered by pure unit tests; the full event→policy→reaction loop by `endToEnd.test.ts`.
+- **Test Explorer support is a compatibility adapter.** Stable VS Code cannot expose another extension's `TestRun`, and vscode-jest 6.4.4 exports no API. `JestResultDetector` therefore watches its structured temp reports (`jest_runner_*.json`), retries incomplete writes, deduplicates identical content, and never changes or deletes those files. Keep the filename/schema handling narrow and defensive because it is not a vscode-jest public contract.

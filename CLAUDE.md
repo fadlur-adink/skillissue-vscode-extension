@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-SkillIssue — a VS Code extension that observes builds/tests/lints (tasks and integrated-terminal commands) and, on failure, pops a laughing-cat WebView with sound. TypeScript (strict), plain `tsc` → CommonJS in `out/`, zero runtime dependencies, no bundler. Desktop-only extension host.
+SkillIssue — a VS Code extension that observes builds/tests/lints (tasks, integrated-terminal commands, and vscode-jest Testing UI reports) and, on failure, pops a laughing-cat WebView with sound. TypeScript (strict), plain `tsc` → CommonJS in `out/`, zero runtime dependencies, no bundler. Desktop-only extension host.
 
 ## Commands
 
@@ -29,12 +29,12 @@ Debug: F5 ("Run Extension") opens the Extension Development Host; run `SkillIssu
 
 ## Architecture
 
-Strict inward layering: **outer layers may import inner layers, never the reverse**. Only `extension.ts` (composition root, owns ALL wiring) and the named adapters import `vscode`: `detection/taskDetector`, `detection/terminalDetector`, `config/skillIssueConfig`, `reaction/catReactionController`, `logging/outputChannelLogger`. Everything else is pure and unit-testable offline.
+Strict inward layering: **outer layers may import inner layers, never the reverse**. Only `extension.ts` (composition root, owns ALL wiring) and the named adapters import `vscode`: `detection/taskDetector`, `detection/terminalDetector`, `detection/jestResultDetector`, `config/skillIssueConfig`, `reaction/catReactionController`, `logging/outputChannelLogger`. Everything else is pure and unit-testable offline.
 
 Pipeline: **detection → policy → reaction**, driven by the orchestrator.
 
 - `src/core/` — pure domain model: operations, outcomes, events, `WorkflowTracker` (consecutive-failure tracking keyed `source::workspace::name` — never add the per-run id to that key).
-- `src/detection/` — thin `vscode` adapters over Tasks and shell-execution APIs; all decision logic lives in pure mapping modules (`taskMapping.ts`, `commandMapping.ts`). Outcome comes from exit code only — never terminal text. Ambiguous tools (`next`, `vite`, `node`) and dev servers classify as `Unknown` and emit nothing. See `src/detection/AGENTS.md`.
+- `src/detection/` — thin adapters over Tasks, shell-execution events, and vscode-jest's structured Test Explorer reports; decision logic lives in pure mapping modules (`taskMapping.ts`, `commandMapping.ts`, `jestResultMapping.ts`). Task/terminal outcomes come from exit codes and Jest outcomes from JSON fields — never terminal/Testing Output text. Ambiguous tools (`next`, `vite`, `node`) and dev servers classify as `Unknown` and emit nothing. See `src/detection/AGENTS.md`.
 - `src/policy/` — pure `shouldReact()` decision: ANDed filters, `exclude` is a veto, include/exclude matching is case-insensitive substring (never regex/glob).
 - `src/orchestration/` — pure detection→policy→reaction loop; `SkillIssueOrchestrator.handleEvent()` never throws.
 - `src/reaction/` — WebView presentation. `reactionView.ts` is a pure markup function (CSP + per-render nonce + `escapeHtml` on every dynamic value); `catReactionController.ts` owns the single reused panel; sound is injected (`playSystemSound`), never imported. Asset names come only from `REACTION_ASSETS` in `reactionAssets.ts` (parity test enforces it). See `src/reaction/AGENTS.md`.
