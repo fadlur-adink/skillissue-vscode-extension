@@ -108,26 +108,65 @@ describe('detection/jestResultMapping', () => {
       assert.equal(workspace, undefined);
     });
 
-    it('matches vscode-jest report filenames, including its second queue', () => {
+    it('matches one-shot Testing UI reports, including Run All', () => {
       const workspaces = [{ name: 'fincen-fe', fsPath: '/work/fincen-fe' }];
-      assert.equal(
-        workspaceForJestResultFile('jest_runner_fincen_fe_1000.json', workspaces, '1000')?.name,
-        'fincen-fe',
-      );
       assert.equal(
         workspaceForJestResultFile('jest_runner_fincen_fe_1000_2.json', workspaces, '1000')?.name,
         'fincen-fe',
       );
     });
 
-    it('rejects report files belonging to a different workspace or user', () => {
-      const workspaces = [{ name: 'app', fsPath: '/work/app' }];
+    it('ignores the watch, watch-all, and startup report queue', () => {
+      const workspaces = [{ name: 'fincen-fe', fsPath: '/work/fincen-fe' }];
       assert.equal(
-        workspaceForJestResultFile('jest_runner_other_1000.json', workspaces, '1000'),
+        workspaceForJestResultFile('jest_runner_fincen_fe_1000.json', workspaces, '1000'),
+        undefined,
+      );
+    });
+
+    it('does not mistake user IDs ending in 2 for the one-shot queue', () => {
+      const workspaces = [{ name: 'app_2', fsPath: '/work/app_2' }];
+      assert.equal(
+        workspaceForJestResultFile('jest_runner_app_2_2.json', workspaces, '2'),
         undefined,
       );
       assert.equal(
-        workspaceForJestResultFile('jest_runner_app_2000.json', workspaces, '1000'),
+        workspaceForJestResultFile('jest_runner_app_2_2_2.json', workspaces, '2')?.name,
+        'app_2',
+      );
+    });
+
+    it('matches sanitized workspace and Windows user names', () => {
+      const workspaces = [{ name: 'My App', fsPath: workspacePath }];
+      assert.equal(
+        workspaceForJestResultFile('jest_runner_my_app_dev_user_2.json', workspaces, 'Dev.User')?.name,
+        'My App',
+      );
+      assert.equal(
+        workspaceForJestResultFile('jest_runner_my_app_dev_user.json', workspaces, 'Dev.User'),
+        undefined,
+      );
+    });
+
+    it('rejects unknown report queues', () => {
+      assert.equal(
+        workspaceForJestResultFile(
+          'jest_runner_app_1000_3.json',
+          [{ name: 'app', fsPath: workspacePath }],
+          '1000',
+        ),
+        undefined,
+      );
+    });
+
+    it('rejects report files belonging to a different workspace or user', () => {
+      const workspaces = [{ name: 'app', fsPath: '/work/app' }];
+      assert.equal(
+        workspaceForJestResultFile('jest_runner_other_1000_2.json', workspaces, '1000'),
+        undefined,
+      );
+      assert.equal(
+        workspaceForJestResultFile('jest_runner_app_2000_2.json', workspaces, '1000'),
         undefined,
       );
     });

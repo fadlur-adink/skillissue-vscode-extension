@@ -36,6 +36,10 @@ Failed **VS Code tasks**, failed Jest tests launched from Explorer/Testing via
 into the **integrated terminal** — `npm test`, `tsc`, `next build`, `cargo test`,
 `go vet`, you name it.
 
+Jest's **watch/watch-all reruns stay quiet**, so saving a file won't summon the cat.
+Its automatic startup runs are also ignored; one-shot runs from Explorer/Testing
+(including **Run All Tests**) can still trigger a laugh.
+
 What *doesn't* make the cat laugh: `git`, `ls`, `grep`, `cd` and every other scrap
 of ordinary shell noise. The cat has standards. (Terminal roasting needs VS Code's
 shell integration switched on for that terminal.) Jest Testing UI support observes

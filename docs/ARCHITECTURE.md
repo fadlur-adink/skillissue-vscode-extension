@@ -169,8 +169,17 @@ creates with `--json --outputFile` in the OS temp directory
 (`jest_runner_<workspace>_<user>.json`).
 
 `jestResultDetector.ts` watches only that filename family, retries transient or
-partially-written reports, and deduplicates identical file contents. It never
-reads the Testing Output text, modifies the test process, or deletes the report.
+partially-written reports, and deduplicates identical file contents. Before
+reading a report, it matches only the one-shot `blocking-2` queue's
+`jest_runner_<workspace>_<user>_2.json` filename. vscode-jest 6.4.4 routes
+Explorer/Testing runs (including Run All Tests) through that queue; watch and
+watch-all runs use the unsuffixed primary queue, which is ignored. Automatic
+startup runs also use the primary queue and therefore stay silent. The JSON
+body itself does not identify watch mode. On-save mode uses the one-shot queue
+and is unchanged by this filter.
+
+It never reads the Testing Output text, modifies the test process, or deletes
+the report.
 `jestResultMapping.ts` is the pure boundary that maps `success`, interruption and
 failure counts to the shared outcome model and builds `source: testExplorer`
 operations. This is deliberately documented as a compatibility adapter rather

@@ -21,8 +21,9 @@ const READ_RETRY_DELAYS_MS = [20, 60, 150] as const;
  * VS Code's stable API does not let one extension observe another extension's
  * TestRun results, and vscode-jest does not export a result API. Its runner does,
  * however, persist Jest's `--json --outputFile` report in the OS temp directory.
- * This adapter watches only that known file family and delegates all result logic
- * to the pure mapping module; it never parses the Testing Output text.
+ * This adapter watches only that known file family and accepts the one-shot
+ * queue's reports; the watch/startup queue is ignored. Result and filename logic
+ * lives in the pure mapping module; it never parses the Testing Output text.
  */
 export class JestResultDetector implements vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<WorkflowEvent>();
@@ -82,6 +83,13 @@ export class JestResultDetector implements vscode.Disposable {
 
   private async readResult(filename: string, attempt: number): Promise<void> {
     try {
+      const workspaces = vscode.workspace.workspaceFolders?.map(toWorkspace) ?? [];
+      const workspace = workspaceForJestResultFile(filename, workspaces, this.userId);
+      if (workspace === undefined) {
+        this.logger.debug(`Ignoring background or unrelated Jest result report: ${filename}`);
+        return;
+      }
+
       const reportText = await readFile(join(tmpdir(), filename), 'utf8');
       if (this.fileStates.get(filename) === reportText) {
         return;
@@ -89,13 +97,6 @@ export class JestResultDetector implements vscode.Disposable {
       const parsed: unknown = JSON.parse(reportText);
       if (!isJestResult(parsed)) {
         this.logger.debug(`Ignoring malformed Jest result report: ${filename}`);
-        return;
-      }
-
-      const workspaces = vscode.workspace.workspaceFolders?.map(toWorkspace) ?? [];
-      const workspace = workspaceForJestResultFile(filename, workspaces, this.userId);
-      if (workspace === undefined) {
-        this.logger.debug(`Ignoring Jest result outside the current workspace: ${filename}`);
         return;
       }
 

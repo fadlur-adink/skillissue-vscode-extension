@@ -6,6 +6,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Ignore vscode-jest's watch/watch-all and automatic startup reports while
+  preserving reactions for one-shot Explorer/Testing runs, including Run All Tests.
+
 ### Added
 
 - **SkillIssue**, a strictly observational extension that reacts to a failing

@@ -85,7 +85,15 @@ export function workspaceForJestResult(
     .find((workspace) => paths.some((testPath) => isInsideWorkspace(testPath, workspace.fsPath)));
 }
 
-/** Matches vscode-jest's `jest_runner_<workspace>_<user>[_2].json` convention. */
+/**
+ * Matches only vscode-jest's one-shot (`blocking-2`) report queue.
+ *
+ * vscode-jest 6.4.4 uses the unsuffixed filename for its primary queue: watch,
+ * watch-all, and automatic startup runs. Testing UI runs (including Run All)
+ * use `blocking-2`, whose filename ends in `_2.json`. The report body does not
+ * identify watch mode, so keep the background queue out of the workflow stream.
+ * See vscode-jest's JestExt/process-session.ts and JestProcessManagement/JestProcess.ts.
+ */
 export function workspaceForJestResultFile(
   filename: string,
   workspaces: readonly JestWorkspace[],
@@ -93,7 +101,7 @@ export function workspaceForJestResultFile(
 ): JestWorkspace | undefined {
   return workspaces.find((workspace) => {
     const suffix = sanitizeFileSuffix(`${workspace.name}_${userId}`);
-    return filename === `jest_runner_${suffix}.json` || filename === `jest_runner_${suffix}_2.json`;
+    return filename === `jest_runner_${suffix}_2.json`;
   });
 }
 
