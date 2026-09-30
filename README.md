@@ -138,3 +138,5 @@ of unclear provenance and are **not** MIT-covered — the cat is famous, but not
 
 Want to teach the cat new ways to laugh? See `CONTRIBUTING.md` for the dev guide
 and `docs/ARCHITECTURE.md` for why the cat is built the way it is.
+
+TEST
